@@ -220,79 +220,51 @@ class MoveReferee {
     classifyOffensive() {
         if (this.history.length < 10) return;
 
-        // --- DATA DRIVEN ANALYSIS (Based on User Recording) ---
-        // Vanguard Signature seen in record:
-        // 1. High Accel Y (Centrifugal force): > 30
-        // 2. Negative Accel X (Right to Left): Avg X < -5
-        // 3. Gamma Drop (Roll Left): Delta Gamma < -40
+        // --- ANATOMICAL ANALYSIS ---
+        // We look at the "Sweep" of the motion.
 
-        // Get Stats
         const start = this.history[0].g;
         const end = this.history[this.history.length - 1].g;
-        const deltaGamma = end.gamma - start.gamma;
-        const deltaBeta = end.beta - start.beta;
+        const deltaGamma = end.gamma - start.gamma; // Roll (Left/Right)
 
-        let maxX = 0, maxY = 0;
-        let avgX = 0;
-
-        let sumX = 0;
-        this.history.forEach(h => {
-            if (Math.abs(h.a.x) > Math.abs(maxX)) maxX = h.a.x;
-            if (Math.abs(h.a.y) > Math.abs(maxY)) maxY = h.a.y;
-            sumX += h.a.x;
-        });
-        avgX = sumX / this.history.length;
-
-        console.log(`ANALYSIS: dGamma:${deltaGamma.toFixed(0)}, AvgX:${avgX.toFixed(1)}, MaxY:${maxY.toFixed(1)}`);
+        // Calculate Max Forces
+        let maxForce = 0;
+        this.history.forEach(h => { if (h.f > maxForce) maxForce = h.f; });
 
         let detectedId = null;
 
-        // 1. VANGUARD'S CLEAVE (Right-Up -> Left-Down)
-        // User Data: X goes to -40, Gamma drops by 60+.
-        if (deltaGamma < -35 && avgX < -2) {
-            console.log("-> Potential Vanguard Identified");
+        // 1. VANGUARD'S CLEAVE (Sag Ust -> Sol Alt)
+        // Description: Right Shoulder to Left Hip.
+        // Physics: 
+        // - START: Tilted Right (Gamma significantly Positive)
+        // - MOTION: Sweeps Left (Gamma decreases drastically)
+        // - END: Tilted Left (Gamma Negative)
+        if (start.gamma > 15 && end.gamma < -15 && deltaGamma < -40) {
+            console.log("-> ANATOMICAL MATCH: Vanguard's Cleave");
             detectedId = '1';
         }
 
-        // 2. SINISTER SLASH (Left-Up -> Right-Down)
-        // Opposite of Vanguard
-        else if (deltaGamma > 35 && avgX > 2) {
+        // 2. SINISTER SLASH (Sol Ust -> Sag Alt)
+        // Description: Left Shoulder to Right Hip.
+        // Physics:
+        // - START: Tilted Left (Gamma significantly Negative)
+        // - MOTION: Sweeps Right (Gamma increases drastically)
+        // - END: Tilted Right (Gamma Positive)
+        else if (start.gamma < -15 && end.gamma > 15 && deltaGamma > 40) {
+            console.log("-> ANATOMICAL MATCH: Sinister Slash");
             detectedId = '2';
         }
 
         // 3. HEARTSEEKER (Thrust)
-        // High Y-Accel, Low Rotation, Stable X
-        else if (maxY > 15 && Math.abs(deltaGamma) < 25 && Math.abs(avgX) < 10) {
+        // Description: Stab Forward.
+        // Physics: Little rotation change, high forward/linear acceleration.
+        // (Keeping existing logic for now as user focused on slashes)
+        else if (maxForce > 15 && Math.abs(deltaGamma) < 20) {
             detectedId = '5';
         }
 
-        // 4. VERTICAL / HORIZONTAL (Secondary Checks)
-        else if (Math.abs(deltaGamma) > 30) {
-            // Horizontal Swipe without strong X accel?
-            if (deltaGamma < 0) detectedId = '8'; // Horizon Left
-            else detectedId = '9'; // Blade Right
-        }
-        else if (Math.abs(deltaBeta) > 40) {
-            // Vertical Drop
-            detectedId = '6'; // Executioner
-        }
-
         // --- SCORING ---
-        let score = 0;
-        let maxForce = 0;
-        this.history.forEach(h => { if (h.f > maxForce) maxForce = h.f; });
-        // 2. Angle Match Score
-        // If we detected a move, it means we passed the threshold.
-        // But how "deep" was the cut?
-        // Vanguard Ideal: Delta Gamma = -60. If we got -30 (threshold), score is lower.
-
-        // Calculate a generic "Motion Magnitude" score
-        // We use the detected ID to check against ideal?
-        // Or just map "Intensity" to score for now since we rely on heuristics?
-
         if (detectedId) {
-            // For now, let's use a simpler heuristic for V1.1
-            // Score = (Force % + Rotation Magnitude %) / 2
 
             let rotationMag = Math.abs(deltaGamma) + Math.abs(deltaBeta);
             // Ideal rotation sum ~ 60-90 degrees

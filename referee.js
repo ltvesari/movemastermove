@@ -136,8 +136,10 @@ const MOVE_LIST = {
     // --- OFFENSIVE (Kılıç) ---
     '1': { id: '1', name: "Vanguard's Cleave", type: 'SLASH', desc: 'Sağ Üst -> Sol Alt (Çapraz)', trigger: 'slash_diag_down_left' },
     '2': { id: '2', name: "Sinister Slash", type: 'SLASH', desc: 'Sol Üst -> Sağ Alt (Çapraz)', trigger: 'slash_diag_down_right' },
-    '3': { id: '3', name: "Rising Dragon", type: 'SLASH', desc: 'Sağ Alt -> Sol Üst (Ters Çapraz)', trigger: 'slash_diag_up_left' },
-    '4': { id: '4', name: "Gale Upper", type: 'SLASH', desc: 'Sol Alt -> Sağ Üst (Ters Çapraz)', trigger: 'slash_diag_up_right' },
+    // SWAPPED 3 & 4
+    '3': { id: '3', name: "Rising Dragon", type: 'SLASH', desc: 'Sol Alt -> Sağ Üst (Aparkat)', trigger: 'slash_diag_up_right' },
+    '4': { id: '4', name: "Gale Upper", type: 'SLASH', desc: 'Sağ Alt -> Sol Üst (Ters Aparkat)', trigger: 'slash_diag_up_left' },
+
     '5': { id: '5', name: "Heartseeker", type: 'THRUST', desc: 'İleri Saplama (Thrust)', trigger: 'thrust_forward' },
     '6': { id: '6', name: "Executioner’s Gavel", type: 'SLASH', desc: 'Dikey İniş (Chop)', trigger: 'slash_vertical_down' },
     '7': { id: '7', name: "Earthshaker", type: 'SLASH', desc: 'Dikey Çöküş (Squat Chop)', trigger: 'slash_vertical_drop' },
@@ -145,6 +147,7 @@ const MOVE_LIST = {
     '9': { id: '9', name: "Blade Hurricane", type: 'SLASH', desc: 'Soldan Sağa (Yatay)', trigger: 'slash_horizontal_right' },
 
     // --- DEFENSIVE (Korunma) ---
+    // Updated 20
     '20': { id: '20', name: "Iron Stance", type: 'STANCE', desc: 'Göğüs Hizasında Bekle (3sn)', trigger: 'stance_stable' },
     '21': { id: '21', name: "Aegis of Heavens", type: 'STANCE', desc: 'Baş Üstü Koruma & Squat', trigger: 'stance_high' },
     '22': { id: '22', name: "Valkyrie’s Ward", type: 'ACTION', desc: 'Korun & Zıpla', trigger: 'action_jump' },
@@ -201,7 +204,7 @@ class MoveReferee {
             return;
         }
 
-        // 2. ACTION (Discrete Movements like Jump, Run)
+        // 2. ACTION (Discrete Movements)
         if (['22', '23', '24', '25'].includes(this.targetMoveId)) {
             this.checkAction(accel, gyro, force);
             return;
@@ -212,49 +215,6 @@ class MoveReferee {
         const SWING_THRESHOLD = 8;
         if (force > SWING_THRESHOLD) {
             this.classifyOffensive();
-        }
-    }
-    // ... (skipping classifyOffensive for brevity, assuming tool merges correctly) ...
-    startStanceEvaluation() {
-        this.isEvaluatingStance = true;
-        this.stanceStartTime = Date.now();
-        this.stanceFailed = false;
-        this.showFeedback("SABİT DUR... (3sn)");
-        this.maxStabilityError = 0;
-    }
-
-    checkStance(accel, gyro, force) {
-        if (!this.isEvaluatingStance) return;
-
-        // Stability Score
-        // Error = Gyro Rotation + Force Fluctuation
-        // We want force to be roughly 0 (after gravity offset removal) or steady gravity
-        // Since 'force' is based on accel-offsets, it should be close to 0 if still.
-
-        let gyroError = Math.abs(gyro.alpha) + Math.abs(gyro.beta) + Math.abs(gyro.gamma);
-        let forceError = force * 10; // Scale force to be comparable to degrees
-
-        let currentError = gyroError + forceError;
-
-        if (currentError > this.maxStabilityError) this.maxStabilityError = currentError;
-
-        if (currentError > 100) {
-            this.showFeedback("ÇOK HAREKETLİ!", "#ff5500");
-            // Reset timer?
-            this.stanceStartTime = Date.now();
-            this.maxStabilityError = 0;
-        }
-
-        const duration = Date.now() - this.stanceStartTime;
-
-        if (duration > 3000) {
-            this.isEvaluatingStance = false;
-
-            // Calculate Score
-            let stabilityScore = Math.max(0, 100 - (this.maxStabilityError));
-
-            // Trigger whatever the target was (20 or 21)
-            this.triggerMove(this.targetMoveId, Math.floor(stabilityScore));
         }
     }
 
@@ -291,15 +251,17 @@ class MoveReferee {
 
         // --- TIER 1: COMPLEX / SPECIFIC MOVES ---
 
-        // 3. RISING DRAGON (Left + Up)
-        if (avgX < -1 && avgY > 2 && maxForce > 8) {
-            console.log("-> MATCH: Rising Dragon (Up-Left)");
+        // 3. RISING DRAGON (Left-Down -> Right-Up)
+        // Vector: Positive X (Right), Positive Y (Up)
+        if (avgX > 1 && avgY > 2 && maxForce > 8) {
+            console.log("-> MATCH: Rising Dragon (Up-Right)");
             detectedId = '3';
         }
 
-        // 4. GALE UPPER (Right + Up)
-        else if (avgX > 1 && avgY > 2 && maxForce > 8) {
-            console.log("-> MATCH: Gale Upper (Up-Right)");
+        // 4. GALE UPPER (Right-Down -> Left-Up)
+        // Vector: Negative X (Left), Positive Y (Up)
+        else if (avgX < -1 && avgY > 2 && maxForce > 8) {
+            console.log("-> MATCH: Gale Upper (Up-Left)");
             detectedId = '4';
         }
 
@@ -347,6 +309,7 @@ class MoveReferee {
         // --- TIER 2: BASIC SWINGS (Fallback) ---
 
         // 1. VANGUARD (Left)
+        // Checks only direction X, allows any Y (unless it matched above)
         else if (avgX < -1 && maxForce > 8) {
             console.log("-> MATCH: Vanguard (Left)");
             detectedId = '1';
@@ -366,6 +329,7 @@ class MoveReferee {
         } else {
             if (maxForce > 12) {
                 let hint = "NET BİR YÖN BELİRLE!";
+                // Basic hinting
                 if (Math.abs(avgY) > 3 && deltaBeta > 20) hint = "DAHA DİK İNDİR!"; // Executioner fail?
                 else if (this.targetMoveId === '5' && deltaBeta > 30) hint = "BİLEĞİNİ BÜKME! (Düz Sapla)";
                 else if (avgX > 0) hint = "SOLA?";
@@ -380,21 +344,30 @@ class MoveReferee {
         this.isEvaluatingStance = true;
         this.stanceStartTime = Date.now();
         this.stanceFailed = false;
-        this.showFeedback("BEKLE... (Hareketsiz)");
+        this.showFeedback("SABİT DUR... (3sn)");
         this.maxStabilityError = 0;
     }
 
-    checkStance(accel, gyro) {
+    checkStance(accel, gyro, force) {
         if (!this.isEvaluatingStance) return;
 
         // Stability Score
-        // Ideal: 0 motion.
-        // Error = Abs(Gyro)
-        let currentError = Math.abs(gyro.alpha) + Math.abs(gyro.beta) + Math.abs(gyro.gamma);
+        // Error = Gyro Rotation + Force Fluctuation
+        // We want force to be roughly 0 (after gravity offset removal) or steady gravity
+        // Since 'force' is based on accel-offsets, it should be close to 0 if still.
+
+        let gyroError = Math.abs(gyro.alpha) + Math.abs(gyro.beta) + Math.abs(gyro.gamma);
+        let forceError = force * 10; // Scale force to be comparable to degrees
+
+        let currentError = gyroError + forceError;
+
         if (currentError > this.maxStabilityError) this.maxStabilityError = currentError;
 
-        if (currentError > 50) { // Too much movement
-            // Fail? Or just lower score?
+        if (currentError > 100) {
+            this.showFeedback("ÇOK HAREKETLİ!", "#ff5500");
+            // Reset timer?
+            this.stanceStartTime = Date.now();
+            this.maxStabilityError = 0;
         }
 
         const duration = Date.now() - this.stanceStartTime;
@@ -402,11 +375,25 @@ class MoveReferee {
         if (duration > 3000) {
             this.isEvaluatingStance = false;
 
-            // Calculate Score: Lower error = Higher Score
-            // If MaxError < 10 => 100%. If MaxError > 50 => 0%.
-            let stabilityScore = Math.max(0, 100 - (this.maxStabilityError * 2));
+            // Calculate Score
+            let stabilityScore = Math.max(0, 100 - (this.maxStabilityError));
 
-            this.triggerMove('20', Math.floor(stabilityScore));
+            // Trigger whatever the target was (20 or 21)
+            this.triggerMove(this.targetMoveId, Math.floor(stabilityScore));
+        }
+    }
+
+    checkAction(accel, gyro, force) {
+        // Move 22: Valkyrie's Ward (JUMP)
+        // Logic: Look for "Freefall" (Negative Y relative to standing bias).
+
+        if (this.targetMoveId === '22') {
+            // Threshold: -5 (Partial freefall)
+            if (accel.y < -5) {
+                // Simple version: Trigger on deep freefall + slight delay
+                console.log("-> ACTION MATCH: Jump (Freefall Detected)");
+                this.triggerMove('22', 100);
+            }
         }
     }
 

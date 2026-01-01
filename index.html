@@ -33,17 +33,40 @@
                 <label for="move-select" style="color: #888; font-size: 0.8rem;">EĞİTİM MODU SEÇİMİ:</label>
                 <select id="move-select" class="cyber-select" onchange="gameManager.startParamPractice(this.value)">
                     <option value="" disabled selected>Hareket Seç...</option>
-                    <option value="1">Vanguard's Cleave</option>
-                    <option value="2">Sinister Slash</option>
-                    <option value="5">Heartseeker</option>
-                    <option value="20">Iron Stance</option>
-                    <option value="41">Sigil of Banishing</option>
+                    <optgroup label="Saldırı (Offensive)">
+                        <option value="1">Vanguard's Cleave</option>
+                        <option value="2">Sinister Slash</option>
+                        <option value="3">Rising Dragon</option>
+                        <option value="4">Gale Upper</option>
+                        <option value="5">Heartseeker</option>
+                        <option value="6">Executioner’s Gavel</option>
+                        <option value="8">Horizon Sweeper</option>
+                        <option value="9">Blade Hurricane</option>
+                    </optgroup>
+                    <optgroup label="Savunma (Defensive)">
+                        <option value="20">Iron Stance</option>
+                        <option value="21">Aegis of Heavens</option>
+                        <option value="22">Valkyrie’s Ward</option>
+                        <option value="23">Relentless Pursuit</option>
+                        <option value="24">Dwarven Breaker</option>
+                        <option value="25">Shadow Step</option>
+                    </optgroup>
+                    <optgroup label="Büyü (Magic)">
+                        <option value="41">Sigil of Banishing</option>
+                        <option value="42">Arcane Comet</option>
+                        <option value="43">Nova Eruption</option>
+                        <option value="44">Pentagram of Doom</option>
+                    </optgroup>
                 </select>
             </div>
 
             <div class="enemy-plate">
                 <div class="instruction-label">İSTENEN HAREKET</div>
                 <div id="target-move" class="move-name">---</div>
+                <div id="accuracy-display" style="opacity:0; transition: opacity 0.5s; margin-top:10px;">
+                    <div style="font-size:0.8rem; color:#888;">DOĞRULUK</div>
+                    <div id="score-val" style="font-size:3rem; font-weight:bold; color:var(--primary);">0%</div>
+                </div>
             </div>
 
             <div class="feedback-area">

@@ -141,18 +141,31 @@ class SensorManager {
     }
 }
 
-// --- MOVE LIBRARY ---
 const MOVE_LIST = {
-    // Offensive (Kılıç)
-    '1': { id: '1', name: "Vanguard's Cleave", type: 'SLASH', desc: 'Sağ Üst -> Sol Alt', trigger: 'accel_high' },
-    '2': { id: '2', name: "Sinister Slash", type: 'SLASH', desc: 'Sol Üst -> Sağ Alt', trigger: 'accel_high' },
-    '5': { id: '5', name: "Heartseeker", type: 'THRUST', desc: 'İleri Saplama', trigger: 'accel_forward' },
+    // --- OFFENSIVE (Kılıç) ---
+    '1': { id: '1', name: "Vanguard's Cleave", type: 'SLASH', desc: 'Sağ Üst -> Sol Alt (Çapraz)', trigger: 'slash_diag_down_left' },
+    '2': { id: '2', name: "Sinister Slash", type: 'SLASH', desc: 'Sol Üst -> Sağ Alt (Çapraz)', trigger: 'slash_diag_down_right' },
+    '3': { id: '3', name: "Rising Dragon", type: 'SLASH', desc: 'Sağ Alt -> Sol Üst (Ters Çapraz)', trigger: 'slash_diag_up_left' },
+    '4': { id: '4', name: "Gale Upper", type: 'SLASH', desc: 'Sol Alt -> Sağ Üst (Ters Çapraz)', trigger: 'slash_diag_up_right' },
+    '5': { id: '5', name: "Heartseeker", type: 'THRUST', desc: 'İleri Saplama (Thrust)', trigger: 'thrust_forward' },
+    '6': { id: '6', name: "Executioner’s Gavel", type: 'SLASH', desc: 'Dikey İniş (Chop)', trigger: 'slash_vertical_down' },
+    '7': { id: '7', name: "Earthshaker", type: 'SLASH', desc: 'Dikey Çöküş (Squat Chop)', trigger: 'slash_vertical_drop' },
+    '8': { id: '8', name: "Horizon Sweeper", type: 'SLASH', desc: 'Sağdan Sola (Yatay)', trigger: 'slash_horizontal_left' },
+    '9': { id: '9', name: "Blade Hurricane", type: 'SLASH', desc: 'Soldan Sağa (Yatay)', trigger: 'slash_horizontal_right' },
 
-    // Defensive (Korunma)
-    '20': { id: '20', name: "Iron Stance", type: 'STANCE', desc: 'Squat & Bekle', trigger: 'stability' },
+    // --- DEFENSIVE (Korunma) ---
+    '20': { id: '20', name: "Iron Stance", type: 'STANCE', desc: 'Squat & Bekle', trigger: 'stance_stable' },
+    '21': { id: '21', name: "Aegis of Heavens", type: 'STANCE', desc: 'Baş Üstü Koruma & Squat', trigger: 'stance_high' },
+    '22': { id: '22', name: "Valkyrie’s Ward", type: 'ACTION', desc: 'Korun & Zıpla', trigger: 'action_jump' },
+    '23': { id: '23', name: "Relentless Pursuit", type: 'ACTION', desc: 'Olduğun Yerde Koş', trigger: 'action_run' },
+    '24': { id: '24', name: "Dwarven Breaker", type: 'ACTION', desc: 'Kettlebell Swing', trigger: 'action_swing' },
+    '25': { id: '25', name: "Shadow Step", type: 'ACTION', desc: 'Sağa/Sola Sıçra', trigger: 'action_dodge' },
 
-    // Magic (Büyü)
-    '41': { id: '41', name: "Sigil of Banishing", type: 'PATTERN', desc: 'Havada X Çiz', trigger: 'pattern' }
+    // --- MAGIC (Büyü) ---
+    '41': { id: '41', name: "Sigil of Banishing", type: 'PATTERN', desc: 'Havada X Çiz', trigger: 'pattern_x' },
+    '42': { id: '42', name: "Arcane Comet", type: 'PATTERN', desc: 'Daire Çiz + Fırlat', trigger: 'pattern_circle_throw' },
+    '43': { id: '43', name: "Nova Eruption", type: 'PATTERN', desc: 'Çök & Patla', trigger: 'pattern_squat_explode' },
+    '44': { id: '44', name: "Pentagram of Doom", type: 'PATTERN', desc: '5 Köşeli Yıldız', trigger: 'pattern_star' }
 };
 
 class MoveReferee {
@@ -210,26 +223,100 @@ class MoveReferee {
         // Get Delta Orientation
         const start = this.history[0].g;
         const end = this.history[this.history.length - 1].g;
+
         const deltaGamma = end.gamma - start.gamma; // Roll (Left/Right tilt)
+        const deltaBeta = end.beta - start.beta;    // Pitch (Up/Down tilt)
 
-        // Determine intended outcome
-        let detectedId = null;
-
-        // Vanguard: Right(Pos) to Left(Neg) -> Gamma Decrease
-        // Heartseeker: Thrust detection
-        // A thrust is a rapid +Y acceleration (along the phone length) with minimal rotation.
-        let maxY = 0;
+        // Calculate maximum linear acceleration on axes
+        let maxX = 0, maxY = 0, maxZ = 0;
         this.history.forEach(h => {
+            if (Math.abs(h.a.x) > maxX) maxX = Math.abs(h.a.x);
             if (Math.abs(h.a.y) > maxY) maxY = Math.abs(h.a.y);
+            if (Math.abs(h.a.z) > maxZ) maxZ = Math.abs(h.a.z);
         });
 
-        // Heuristic: If we have high Y-accel and LOW rotation change
-        if (deltaGamma < -30) detectedId = '1';
-        else if (deltaGamma > 30) detectedId = '2';
-        else if (maxY > 10 && Math.abs(deltaGamma) < 15) detectedId = '5'; // Heartseeker
+        // --- HEURISTICS ---
+        let detectedId = null;
+
+        // 1. HORIZONTAL SLASHES (Dominant Gamma Change, minimal Beta)
+        if (Math.abs(deltaGamma) > 30 && Math.abs(deltaBeta) < 20) {
+            // Left to Right (Gamma Increasing)
+            if (deltaGamma > 30) detectedId = '9'; // Blade Hurricane
+            // Right to Left (Gamma Decreasing)
+            else if (deltaGamma < -30) detectedId = '8'; // Horizon Sweeper
+        }
+
+        // 2. DIAGONAL SLASHES (Both Gamma and Beta change)
+        else if (Math.abs(deltaGamma) > 20 && Math.abs(deltaBeta) > 15) {
+            // Unify logic: 
+            // Vanguard: Right-Up to Left-Down. Gamma decreases, Beta decreases (phone dips)? 
+            // Let's assume standard "Phone is Sword" grip.
+
+            if (deltaGamma < -20) {
+                // Moving Left
+                if (deltaBeta < 0) detectedId = '1'; // Down-Left (Vanguard)
+                else detectedId = '3'; // Up-Left (Rising Dragon)
+            } else {
+                // Moving Right
+                if (deltaBeta < 0) detectedId = '2'; // Down-Right (Sinister)
+                else detectedId = '4'; // Up-Right (Gale Upper)
+            }
+        }
+
+        // 3. VERTICAL SLASHES (Dominant Beta Change or High Y/Z Accel with no Rotation)
+        else if (Math.abs(deltaBeta) > 30 && Math.abs(deltaGamma) < 20) {
+            if (deltaBeta < -30) detectedId = '6'; // Executioner (Down)
+            // Upward vertical is rare, maybe lift?
+        }
+
+        // 4. THRUST (Dominant Y-Accel, Low Rotation)
+        else if (maxY > 10 && Math.abs(deltaGamma) < 15 && Math.abs(deltaBeta) < 15) {
+            detectedId = '5'; // Heartseeker
+        }
+
+        // 5. EARTHSHAKER (Special Case: Drop)
+        // Check for "Freefall" (close to 0G) followed by spike?
+        // Or just strong downward Beta/Z?
+        // Let's map it to Executioner for now if it's strong down, or separte if we detect Squat.
+
+        // --- FALLBACK / OVERRIDE ---
+        // If unspecified but high force, default to closest simple slash
+
+        // --- SCORING LOGIC ---
+        // Calculate score based on how "strong" and "clear" the move was.
+        // Base Score: 50
+        // + Force Bonus (up to 25)
+        // + Angle Accuracy (up to 25)
+
+        let score = 0;
+
+        // 1. Force Score (Max 25 pts for force > 25m/s2)
+        // Threshold was 15.
+        // If MaxForce is 25 => 100% force score.
+        let maxForce = 0;
+        this.history.forEach(h => { if (h.f > maxForce) maxForce = h.f; });
+
+        let forceScore = Math.min((maxForce / 25) * 100, 100);
+
+        // 2. Angle Match Score
+        // If we detected a move, it means we passed the threshold.
+        // But how "deep" was the cut?
+        // Vanguard Ideal: Delta Gamma = -60. If we got -30 (threshold), score is lower.
+
+        // Calculate a generic "Motion Magnitude" score
+        // We use the detected ID to check against ideal?
+        // Or just map "Intensity" to score for now since we rely on heuristics?
 
         if (detectedId) {
-            this.triggerMove(detectedId);
+            // For now, let's use a simpler heuristic for V1.1
+            // Score = (Force % + Rotation Magnitude %) / 2
+
+            let rotationMag = Math.abs(deltaGamma) + Math.abs(deltaBeta);
+            // Ideal rotation sum ~ 60-90 degrees
+            let rotationScore = Math.min((rotationMag / 60) * 100, 100);
+
+            score = Math.floor((forceScore * 0.4) + (rotationScore * 0.6));
+            this.triggerMove(detectedId, score);
         }
     }
 
@@ -238,51 +325,62 @@ class MoveReferee {
         this.stanceStartTime = Date.now();
         this.stanceFailed = false;
         this.showFeedback("BEKLE... (Hareketsiz)");
+        this.maxStabilityError = 0;
     }
 
     checkStance(accel, gyro) {
         if (!this.isEvaluatingStance) return;
 
-        // Fail Condition: Moving too much
-        const stabilityThreshold = 2.0; // m/s2 total force deviation from 1G (approx)
-        // Or just raw accel magnitude deviation?
-        // Let's use gyro for stability. 
-        if (Math.abs(gyro.alpha) > 10 || Math.abs(gyro.beta) > 10 || Math.abs(gyro.gamma) > 10) {
-            // Rotational movement detected
-            // this.stanceFailed = true; // Strict mode
+        // Stability Score
+        // Ideal: 0 motion.
+        // Error = Abs(Gyro)
+        let currentError = Math.abs(gyro.alpha) + Math.abs(gyro.beta) + Math.abs(gyro.gamma);
+        if (currentError > this.maxStabilityError) this.maxStabilityError = currentError;
+
+        if (currentError > 50) { // Too much movement
+            // Fail? Or just lower score?
         }
 
         const duration = Date.now() - this.stanceStartTime;
 
         if (duration > 3000) {
             this.isEvaluatingStance = false;
-            this.triggerMove('20'); // Success
+
+            // Calculate Score: Lower error = Higher Score
+            // If MaxError < 10 => 100%. If MaxError > 50 => 0%.
+            let stabilityScore = Math.max(0, 100 - (this.maxStabilityError * 2));
+
+            this.triggerMove('20', Math.floor(stabilityScore));
         }
     }
 
-    triggerMove(moveId) {
-        const now = Date.now();
+    triggerMove(moveId, score = 0) {
+        this.lastTriggerTime = Date.now();
         const move = MOVE_LIST[moveId];
         let finalMoveId = moveId;
 
         // --- COMBO / PATTERN LOGIC ---
-        // Sigil of Banishing (41) = Vanguard (1) + Sinister (2) within 1.5s
+        // Sigil (41) Upgrade
+        const now = Date.now();
         if (moveId === '2' && this.lastMoveId === '1' && (now - this.lastMoveTime < 1500)) {
-            finalMoveId = '41'; // Upgrade to Sigil
+            finalMoveId = '41';
+            // Combo Score = Average of this stroke and previous stroke?
+            // For now just use current score
+            score += 10; // Combo Bonus
+            if (score > 100) score = 100;
         }
 
-        // Update History
         this.lastMoveId = finalMoveId;
         this.lastMoveTime = now;
-        this.lastTriggerTime = now; // Reset cooldown
+        this.lastTriggerTime = now;
 
         const finalName = MOVE_LIST[finalMoveId].name;
-        console.log(`MOVE DETECTED: ${finalName}`);
+        console.log(`MOVE DETECTED: ${finalName} (Score: ${score}%)`);
 
         // Visual Feedback
         this.showFeedback(finalName);
 
-        if (this.onMoveDetected) this.onMoveDetected(finalMoveId);
+        if (this.onMoveDetected) this.onMoveDetected(finalMoveId, score);
     }
 
     showFeedback(msg) {
@@ -323,18 +421,46 @@ class GameManager {
         this.uiInstruction.innerText = move.desc;
         this.uiTarget.style.color = "#fff";
 
+        // Reset Score Display
+        const scoreDiv = document.getElementById('accuracy-display');
+        if (scoreDiv) scoreDiv.style.opacity = '0';
+
         referee.setTargetMove(move.id);
 
-        referee.setTargetCallback((detectedId) => {
+        referee.setTargetCallback((detectedId, score) => {
             if (detectedId === this.currentTarget.id) {
-                referee.showFeedback("MÜKEMMEL!");
-                document.getElementById('feedback-message').style.color = '#00ff00';
-                setTimeout(() => this.nextRandomTurn(), 2000);
+                this.displayScore(score);
+
+                let praise = "BAŞARILI";
+                if (score > 85) praise = "MÜKEMMEL!";
+                else if (score > 60) praise = "İYİ!";
+                else praise = "OLDU GİBİ...";
+
+                referee.showFeedback(praise);
+                document.getElementById('feedback-message').style.color = score > 80 ? '#00ff00' : '#ffff00';
+
+                setTimeout(() => this.nextRandomTurn(), 3000);
             } else {
                 referee.showFeedback("YANLIŞ!");
                 document.getElementById('feedback-message').style.color = '#ff0055';
             }
         });
+    }
+
+    displayScore(score) {
+        const scoreDiv = document.getElementById('accuracy-display');
+        const scoreVal = document.getElementById('score-val');
+
+        if (!scoreVal) return;
+
+        scoreVal.innerText = score + "%";
+
+        // Color based on score
+        if (score >= 80) scoreVal.style.color = "#00ff00"; // Green
+        else if (score >= 50) scoreVal.style.color = "#ffff00"; // Yellow
+        else scoreVal.style.color = "#ff5500"; // Orange
+
+        if (scoreDiv) scoreDiv.style.opacity = '1';
     }
 }
 

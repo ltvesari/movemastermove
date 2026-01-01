@@ -1,142 +1,104 @@
 <!DOCTYPE html>
-<html lang="tr">
+<html lang="en">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>MoveHero Referee</title>
+    <title>MoveHero Referee - V3.1 (Weighted)</title>
     <link rel="stylesheet" href="style.css">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Roboto+Mono:wght@400;700&display=swap"
+        rel="stylesheet">
 </head>
 
 <body>
 
-    <div class="app-container">
-        <!-- Header -->
-        <header>
-            <div class="logo">MOVEHERO</div>
-            <div class="subtitle">MOTION REFEREE v1.0</div>
-        </header>
+    <div class="container">
+        <h1>MOTION REFEREE <span style="font-size: 14px; color: #555;">V3.1</span></h1>
 
-        <!-- Sensor Control -->
-        <section id="sensor-setup">
-            <button id="btn-connect" class="cyber-button">SENSÖRLERİ BAĞLA</button>
-            <button id="btn-calibrate" class="cyber-button"
-                style="display:none; margin-top:10px; border-color:var(--secondary); color:var(--secondary);">KALİBRE ET
-                (3sn)</button>
-            <div id="sensor-status" class="status-indicator">Durum: Bekleniyor...</div>
-        </section>
+        <div id="sensor-status" class="status-indicator">Sensör: BEKLİYOR</div>
 
-        <!-- Mode Switcher -->
-        <div style="display:flex; gap:10px;">
-            <button id="btn-mode-referee" class="sim-btn" style="background:var(--primary); color:black;">HAKEM
-                MODU</button>
-            <button id="btn-mode-recorder" class="sim-btn">KAYIT MODU</button>
+        <!-- SENSOR DEBUG VALUES -->
+        <div style="font-family: monospace; font-size: 10px; color: #555; margin-bottom: 20px;">
+            ACC: <span id="val-accel">0,0,0</span><br>
+            GYR: <span id="val-gyro">0,0,0</span><br>
+            MAX: <span id="val-max">0</span>
         </div>
 
-        <!-- Recorder UI (Hidden by default) -->
-        <section id="recorder-panel" style="display:none; background:#222; padding:15px; border:1px solid #555;">
-            <h3 style="color:orange; text-align:center;">HAREKET KAYDEDİCİ</h3>
-            <p style="font-size:0.8rem; color:#aaa; text-align:center; margin-bottom:10px;">
-                Hareketi seç, "Kayıt"a bas, hareketi 3 kere yap, "Bitir"e bas.
-            </p>
+        <button id="btn-connect" class="btn-primary">SENSÖRLERİ BAĞLA</button>
+        <button id="btn-calibrate" class="btn-secondary" style="display:none; margin-top:10px;">KALİBRE ET (Iron
+            Stance)</button>
 
-            <select id="record-select" class="cyber-select">
-                <option value="1">Vanguard's Cleave</option>
-                <option value="2">Sinister Slash</option>
-                <option value="3">Rising Dragon</option>
-                <option value="4">Gale Upper</option>
-                <option value="5">Heartseeker</option>
-                <option value="20">Iron Stance</option>
-                <option value="41">Sigil Pattern</option>
+        <div class="feedback" id="feedback-message">HAREKET BEKLENİYOR...</div>
+
+        <!-- DEBUG PANEL (New) -->
+        <div id="debug-panel"
+            style="background: rgba(0,0,0,0.8); padding: 15px; margin-top: 10px; border-radius: 8px; border: 1px solid #555; font-family: monospace; font-size: 14px; color: #00ff00;">
+            <div style="color: #aaa; margin-bottom: 5px;">SON DENEME ANALİZİ:</div>
+            <div>YÖN (X,Y): <span id="dbg-vector" style="color: white; font-weight: bold;">--</span></div>
+            <div>GÜÇ (Force): <span id="dbg-force" style="color: white;">--</span></div>
+            <div>EĞİM (Pitch): <span id="dbg-pitch" style="color: white;">--</span></div>
+            <div id="dbg-result" style="margin-top: 5px; color: #ff5500;"></div>
+        </div>
+
+        <div class="target-display">
+            HEDEF: <span id="target-move">...</span>
+        </div>
+        <div class="instruction-label">...</div>
+
+        <!-- SCORE -->
+        <div id="accuracy-display"
+            style="margin-top: 20px; font-size: 24px; font-weight: bold; opacity: 0; transition: opacity 0.3s;">
+            DOĞRULUK: <span id="score-val" style="color: #00ff00;">0%</span>
+        </div>
+
+        <!-- SIMULATOR CONTROLS -->
+        <div class="controls">
+            <h3>SİMÜLATÖR (PC İçin)</h3>
+            <div class="grid-buttons">
+                <button onclick="simulator.triggerMove('1')">Vanguard</button>
+                <button onclick="simulator.triggerMove('2')">Sinister</button>
+                <button onclick="simulator.triggerMove('3')">Rising Dragon</button>
+                <button onclick="simulator.triggerMove('4')">Gale Upper</button>
+                <button onclick="simulator.triggerMove('5')">Heartseeker</button>
+                <button onclick="simulator.triggerMove('20')">Iron Stance</button>
+                <button onclick="simulator.triggerMove('41')">Sigil (Magic)</button>
+            </div>
+        </div>
+
+        <!-- APP MODE SWITCHER -->
+        <div class="mode-switch" style="margin-top: 30px; border-top: 1px solid #333; padding-top: 10px;">
+            <button id="btn-mode-referee"
+                style="width: 45%; font-size: 12px; background: var(--primary); color: black;">HAKEM MODU</button>
+            <button id="btn-mode-recorder" style="width: 45%; font-size: 12px;">KAYIT MODU</button>
+        </div>
+
+        <!-- REFEREE PANEL (Default) -->
+        <div id="combat-display">
+            <!-- Content above handles this -->
+        </div>
+
+        <!-- RECORDER PANEL (Hidden) -->
+        <div id="recorder-panel" style="display: none; margin-top: 20px;">
+            <h3>VERİ KAYDEDİCİ</h3>
+            <select id="record-select" style="width: 100%; padding: 10px; background: #333; color: white;">
+                <option value="1">1. Vanguard's Cleave</option>
+                <option value="2">2. Sinister Slash</option>
+                <option value="3">3. Rising Dragon</option>
+                <option value="4">4. Gale Upper</option>
+                <option value="5">5. Heartseeker</option>
+                <option value="6">6. Executioner</option>
+                <option value="7">7. Earthshaker</option>
+                <option value="8">8. Horizon</option>
+                <option value="9">9. Blade Hurricane</option>
+                <option value="20">20. Iron Stance</option>
+                <option value="22">22. Valkyrie Jump</option>
             </select>
-
-            <div style="display:flex; gap:10px; margin-top:20px;">
-                <button id="btn-rec-start" class="cyber-button" style="border-color:orange; color:orange;">KAYIT
-                    BAŞLAT</button>
-                <button id="btn-rec-stop" class="cyber-button" style="border-color:red; color:red; display:none;">BİTİR
-                    & İNDİR</button>
-            </div>
-            <div id="rec-status" style="text-align:center; color:white; margin-top:10px;">Hazır</div>
-        </section>
-
-        <!-- Main Display -->
-        <section id="combat-display">
-            <!-- Training Mode Selector -->
-            <div id="training-controls" style="margin-bottom: 20px; width: 100%;">
-                <label for="move-select" style="color: #888; font-size: 0.8rem;">EĞİTİM MODU SEÇİMİ:</label>
-                <select id="move-select" class="cyber-select" onchange="gameManager.startParamPractice(this.value)">
-                    <option value="" disabled selected>Hareket Seç...</option>
-                    <optgroup label="Saldırı (Offensive)">
-                        <option value="1">Vanguard's Cleave</option>
-                        <option value="2">Sinister Slash</option>
-                        <option value="3">Rising Dragon</option>
-                        <option value="4">Gale Upper</option>
-                        <option value="5">Heartseeker</option>
-                        <option value="6">Executioner’s Gavel</option>
-                        <option value="8">Horizon Sweeper</option>
-                        <option value="9">Blade Hurricane</option>
-                    </optgroup>
-                    <optgroup label="Savunma (Defensive)">
-                        <option value="20">Iron Stance</option>
-                        <option value="21">Aegis of Heavens</option>
-                        <option value="22">Valkyrie’s Ward</option>
-                        <option value="23">Relentless Pursuit</option>
-                        <option value="24">Dwarven Breaker</option>
-                        <option value="25">Shadow Step</option>
-                    </optgroup>
-                    <optgroup label="Büyü (Magic)">
-                        <option value="41">Sigil of Banishing</option>
-                        <option value="42">Arcane Comet</option>
-                        <option value="43">Nova Eruption</option>
-                        <option value="44">Pentagram of Doom</option>
-                    </optgroup>
-                </select>
-            </div>
-
-            <div class="enemy-plate">
-                <div class="instruction-label">İSTENEN HAREKET</div>
-                <div id="target-move" class="move-name">---</div>
-                <div id="accuracy-display" style="opacity:0; transition: opacity 0.5s; margin-top:10px;">
-                    <div style="font-size:0.8rem; color:#888;">DOĞRULUK</div>
-                    <div id="score-val" style="font-size:3rem; font-weight:bold; color:var(--primary);">0%</div>
-                </div>
-            </div>
-
-            <div class="feedback-area">
-                <div id="feedback-message" class="feedback-text">HAZIR</div>
-            </div>
-        </section>
-
-        <!-- Debug / Data View -->
-        <section id="debug-panel">
-            <h3>SENSOR DATA</h3>
-            <div class="data-row">
-                <span>ACCEL:</span>
-                <span id="val-accel">0.00, 0.00, 0.00</span>
-            </div>
-            <div class="data-row">
-                <span>GYRO:</span>
-                <span id="val-gyro">0.00, 0.00, 0.00</span>
-            </div>
-            <div class="data-row">
-                <span>MAX FORCE:</span>
-                <span id="val-max">0.00</span>
-            </div>
-        </section>
-
-        <!-- Simulation Controls -->
-        <section id="simulation-controls">
-            <h3>SIMULATION</h3>
-            <button class="sim-btn" onclick="simulator.triggerMove('1')">Sim: Vanguard</button>
-            <button class="sim-btn" onclick="simulator.triggerMove('2')">Sim: Sinister</button>
-            <button class="sim-btn" onclick="simulator.triggerMove('20')">Sim: Iron Stance</button>
-            <button class="sim-btn" onclick="simulator.triggerMove('41')">Sim: Sigil (Pattern)</button>
-        </section>
-
+            <div id="rec-status" style="margin: 10px 0; font-size: 12px; color: #aaa;">Hazır</div>
+            <button id="btn-rec-start" class="btn-primary" style="background: #ff0055;">KAYDI BAŞLAT</button>
+            <button id="btn-rec-stop" class="btn-secondary" style="display: none;">DURDUR & İNDİR</button>
+        </div>
     </div>
-
-    <!-- Audio Assets -->
-    <!-- <audio id="sfx-slash" src="assets/slash.mp3"></audio> -->
 
     <script src="referee.js"></script>
 </body>

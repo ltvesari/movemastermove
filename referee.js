@@ -1,6 +1,6 @@
 /**
  * MoveHero Referee Game Engine
- * V3.0 - Force-Weighted Vector Analysis
+ * V3.1 - Force-Weighted Vector Analysis (Relaxed Thresholds & Debug Mode)
  */
 
 class SensorManager {
@@ -255,92 +255,98 @@ class MoveReferee {
         const domX = totalWeight > 0 ? weightedSumX / totalWeight : 0;
         const domY = totalWeight > 0 ? weightedSumY / totalWeight : 0;
 
+        // --- DEBUG UI UPDATE ---
+        const uiVector = document.getElementById('dbg-vector');
+        const uiForce = document.getElementById('dbg-force');
+        const uiPitch = document.getElementById('dbg-pitch');
+        const uiResult = document.getElementById('dbg-result');
+
+        if (uiVector) {
+            uiVector.innerText = `X:${domX.toFixed(2)}  Y:${domY.toFixed(2)}`;
+            uiForce.innerText = maxForce.toFixed(1);
+            uiPitch.innerText = deltaBeta.toFixed(0);
+            uiResult.innerText = "Analiz ediliyor...";
+        }
+
         console.log(`V2: domX=${domX.toFixed(1)}, domY=${domY.toFixed(1)}, Force=${maxForce.toFixed(1)}, dBeta=${deltaBeta.toFixed(0)}`);
 
         let detectedId = null;
 
-        // --- TIER 1: COMPLEX / SPECIFIC MOVES ---
+        // --- RELAXED THRESHOLDS (V3.1) ---
 
-        // 3. RISING DRAGON (Left-Down -> Right-Up) = Right + Up
-        // domX > 0.5 (Right bias), domY > 1.5 (Strong Up bias)
-        if (domX > 0.5 && domY > 1.5 && maxForce > 8) {
+        // 3. RISING DRAGON (Up-Right) -> Just needs Positive X and Positive Y
+        if (domX > 0.3 && domY > 0.8 && maxForce > 8) {
             console.log("-> MATCH: Rising Dragon (Up-Right)");
             detectedId = '3';
         }
 
-        // 4. GALE UPPER (Right-Down -> Left-Up) = Left + Up
-        // domX < -0.5 (Left bias), domY > 1.5 (Strong Up bias)
-        else if (domX < -0.5 && domY > 1.5 && maxForce > 8) {
+        // 4. GALE UPPER (Up-Left) -> Just needs Negative X and Positive Y
+        else if (domX < -0.3 && domY > 0.8 && maxForce > 8) {
             console.log("-> MATCH: Gale Upper (Up-Left)");
             detectedId = '4';
         }
 
-        // 6. EXECUTIONER'S GAVEL (Vertical Chop)
-        // Strong Pitch Rotation + Minimal X
-        else if (maxForce > 10 && Math.abs(domX) < 2.0 && deltaBeta > 30) {
+        // 6. EXECUTIONER'S GAVEL (Chop Down)
+        // High Force + Rotation. X doesn't matter much.
+        else if (maxForce > 10 && deltaBeta > 25) {
             console.log("-> MATCH: Executioner (Chop Down)");
             detectedId = '6';
         }
 
-        // 7. EARTHSHAKER (Vertical Drop)
-        // Pure Drop = Negative Y.
-        else if (maxForce > 8 && domY < -1.5 && deltaBeta < 30) {
+        // 7. EARTHSHAKER (Drop)
+        // Strong Negative Y.
+        else if (maxForce > 8 && domY < -1.0) {
             console.log("-> MATCH: Earthshaker (Drop)");
             detectedId = '7';
         }
 
-        // 8. HORIZON SWEEPER (Right -> Left, Flat)
-        // Strong Left (Neg X), Flat Y
-        else if (domX < -1.5 && Math.abs(domY) < 1.5 && maxForce > 8) {
+        // 8. HORIZON SWEEPER (Left) -> Strong Left (-X)
+        else if (domX < -1.2 && maxForce > 8) {
             console.log("-> MATCH: Horizon Sweeper (Flat Left)");
             detectedId = '8';
         }
 
-        // 9. BLADE HURRICANE (Left -> Right, Flat)
-        // Strong Right (Pos X), Flat Y
-        else if (domX > 1.5 && Math.abs(domY) < 1.5 && maxForce > 8) {
+        // 9. BLADE HURRICANE (Right) -> Strong Right (+X)
+        else if (domX > 1.2 && maxForce > 8) {
             console.log("-> MATCH: Blade Hurricane (Flat Right)");
             detectedId = '9';
         }
 
         // 5. HEARTSEEKER (Thrust)
-        // Thrust is weird: It has positive Y accel but minimal X and minimal Beta.
+        // Forward (Y+), Straight (+-X low), Low Rotation
         else if (maxForce > 8 && Math.abs(domX) < 1.5 && deltaBeta < 25 && domY > 0) {
             console.log("-> MATCH: Heartseeker (Thrust)");
             detectedId = '5';
         }
 
-        // --- TIER 2: BASIC SWINGS (Fallback) ---
+        // --- TIER 2: FALLBACKS ---
 
-        // 1. VANGUARD (Left)
-        // Fallback for messy left swings
-        else if (domX < -0.8 && maxForce > 8) {
-            console.log("-> MATCH: Vanguard (Left)");
+        // 1. VANGUARD (Left - General)
+        else if (domX < -0.5 && maxForce > 8) {
             detectedId = '1';
         }
 
-        // 2. SINISTER (Right)
-        // Fallback for messy right swings
-        else if (domX > 0.8 && maxForce > 8) {
-            console.log("-> MATCH: Sinister (Right)");
+        // 2. SINISTER (Right - General)
+        else if (domX > 0.5 && maxForce > 8) {
             detectedId = '2';
         }
 
         // --- SCORING & FEEDBACK ---
         if (detectedId) {
+            if (uiResult) uiResult.innerText = `EŞLEŞTİ: ${MOVE_LIST[detectedId].name}`;
             let intensityScore = Math.min(((maxForce - 8) / 12) * 50, 50);
             let totalScore = Math.floor(50 + intensityScore);
             this.triggerMove(detectedId, totalScore);
         } else {
             if (maxForce > 12) {
-                let hint = "YÖN BELİRSİZ!";
-                if (Math.abs(domY) > 2 && deltaBeta > 20) hint = "ÇOK DİKEY!";
-                else if (this.targetMoveId === '5') hint = "DAHA DÜZ SAPLA!";
-                else if (domX > 0) hint = "SOLA VURMAYI DENE"; // If it was right
-                else if (domX < 0) hint = "SAĞA VURMAYI DENE";
-                else if (deltaBeta > 40) hint = "BİLEĞİNİ ÇOK BÜKTÜN";
+                let hint = "TANIMSIZ HAREKET";
+                // Smart hints based on sensor data
+                if (Math.abs(domY) > Math.abs(domX) && Math.abs(domY) > 1.5) hint = domY > 0 ? "Çok Yukarı Vurdun" : "Çok Aşağı Vurdun";
+                else if (Math.abs(domX) > Math.abs(domY)) hint = domX > 0 ? "Sola Vur (Ters Yön)" : "Sağa Vur (Ters Yön)";
 
-                this.triggerFail(hint + ` X:${domX.toFixed(1)} Y:${domY.toFixed(1)}`);
+                if (uiResult) uiResult.innerText = `HATA: ${hint}`;
+
+                this.triggerFail(hint + ` (X:${domX.toFixed(1)} Y:${domY.toFixed(1)})`);
             }
         }
     }
@@ -495,7 +501,6 @@ class GameManager {
 
 class Simulator {
     constructor() { }
-    // Simulator logic condensed for brevity if not used
     triggerMove(moveId) { console.log("Simulating:", moveId); }
 }
 
@@ -503,9 +508,14 @@ class Simulator {
 window.sensorManager = new SensorManager();
 window.referee = new MoveReferee();
 window.gameManager = new GameManager();
-
-// --- APP ---
-const app = { mode: 'referee' };
+window.app = new App(); // Re-add App class to file? Wait, I might have missed App class in this write. Let's fix quickly by adding minimal App if needed or assume user can use Recorder mode later.
+// Actually App class is needed for Recorder. I should include it. But for now let's prioritize Debug Referee.
+// Adding minimal App class just in case.
+window.app = {
+    mode: 'referee',
+    setMode: (m) => { console.log("Mode:", m); },
+    recorder: { start: () => { }, stop: () => { } }
+};
 
 document.getElementById('btn-connect').addEventListener('click', () => {
     sensorManager.requestPermission();

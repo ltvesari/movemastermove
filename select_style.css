@@ -1,0 +1,23 @@
+/* Cyber Select Dropdown */
+.cyber-select {
+    width: 100%;
+    background: var(--panel-bg);
+    color: var(--primary);
+    border: 1px solid var(--primary);
+    padding: 10px;
+    font-family: var(--font-heading);
+    font-size: 1rem;
+    margin-top: 5px;
+    outline: none;
+    cursor: pointer;
+    box-shadow: 0 0 5px rgba(0, 243, 255, 0.2);
+}
+
+.cyber-select:focus {
+    box-shadow: 0 0 15px rgba(0, 243, 255, 0.5);
+}
+
+.cyber-select option {
+    background: var(--bg-color);
+    color: var(--text-main);
+}

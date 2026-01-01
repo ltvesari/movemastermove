@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>MoveHero Referee</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+    <div class="app-container">
+        <!-- Header -->
+        <header>
+            <div class="logo">MOVEHERO</div>
+            <div class="subtitle">MOTION REFEREE v1.0</div>
+        </header>
+
+        <!-- Sensor Control -->
+        <section id="sensor-setup">
+            <button id="btn-connect" class="cyber-button">SENSÖRLERİ BAĞLA</button>
+            <button id="btn-calibrate" class="cyber-button"
+                style="display:none; margin-top:10px; border-color:var(--secondary); color:var(--secondary);">KALİBRE ET
+                (3sn)</button>
+            <div id="sensor-status" class="status-indicator">Durum: Bekleniyor...</div>
+        </section>
+
+        <!-- Main Display -->
+        <section id="combat-display">
+            <!-- Training Mode Selector -->
+            <div id="training-controls" style="margin-bottom: 20px; width: 100%;">
+                <label for="move-select" style="color: #888; font-size: 0.8rem;">EĞİTİM MODU SEÇİMİ:</label>
+                <select id="move-select" class="cyber-select" onchange="gameManager.startParamPractice(this.value)">
+                    <option value="" disabled selected>Hareket Seç...</option>
+                    <option value="1">Vanguard's Cleave</option>
+                    <option value="2">Sinister Slash</option>
+                    <option value="5">Heartseeker</option>
+                    <option value="20">Iron Stance</option>
+                    <option value="41">Sigil of Banishing</option>
+                </select>
+            </div>
+
+            <div class="enemy-plate">
+                <div class="instruction-label">İSTENEN HAREKET</div>
+                <div id="target-move" class="move-name">---</div>
+            </div>
+
+            <div class="feedback-area">
+                <div id="feedback-message" class="feedback-text">HAZIR</div>
+            </div>
+        </section>
+
+        <!-- Debug / Data View -->
+        <section id="debug-panel">
+            <h3>SENSOR DATA</h3>
+            <div class="data-row">
+                <span>ACCEL:</span>
+                <span id="val-accel">0.00, 0.00, 0.00</span>
+            </div>
+            <div class="data-row">
+                <span>GYRO:</span>
+                <span id="val-gyro">0.00, 0.00, 0.00</span>
+            </div>
+            <div class="data-row">
+                <span>MAX FORCE:</span>
+                <span id="val-max">0.00</span>
+            </div>
+        </section>
+
+        <!-- Simulation Controls -->
+        <section id="simulation-controls">
+            <h3>SIMULATION</h3>
+            <button class="sim-btn" onclick="simulator.triggerMove('1')">Sim: Vanguard</button>
+            <button class="sim-btn" onclick="simulator.triggerMove('2')">Sim: Sinister</button>
+            <button class="sim-btn" onclick="simulator.triggerMove('20')">Sim: Iron Stance</button>
+            <button class="sim-btn" onclick="simulator.triggerMove('41')">Sim: Sigil (Pattern)</button>
+        </section>
+
+    </div>
+
+    <!-- Audio Assets -->
+    <!-- <audio id="sfx-slash" src="assets/slash.mp3"></audio> -->
+
+    <script src="referee.js"></script>
+</body>
+
+</html>

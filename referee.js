@@ -116,6 +116,11 @@ class SensorManager {
 
         this.updateUI();
 
+        // RECORDER HOOK
+        if (window.app && window.app.recorder && window.app.recorder.isRecording) {
+            window.app.recorder.capture(this.accel, this.gyro);
+        }
+
         referee.analyze(this.accel, this.gyro, force);
     }
 
@@ -134,33 +139,30 @@ class SensorManager {
 }
 
 const MOVE_LIST = {
-    // --- OFFENSIVE (Kılıç) ---
-    '1': { id: '1', name: "Vanguard's Cleave", type: 'SLASH', desc: 'Sağ Üst -> Sol Alt (Çapraz)', trigger: 'slash_diag_down_left' },
-    '2': { id: '2', name: "Sinister Slash", type: 'SLASH', desc: 'Sol Üst -> Sağ Alt (Çapraz)', trigger: 'slash_diag_down_right' },
+    // --- OFFENSIVE (Kılıç - Accel + Gyro) ---
+    '1': { id: '1', name: "Vanguard's Cleave", type: 'OFFENSIVE', desc: 'Sağ Üst -> Sol Alt (Çapraz)', trigger: 'slash_diag_down_left' },
+    '2': { id: '2', name: "Sinister Slash", type: 'OFFENSIVE', desc: 'Sol Üst -> Sağ Alt (Ters Çapraz)', trigger: 'slash_diag_down_right' },
+    '3': { id: '3', name: "Rising Dragon", type: 'OFFENSIVE', desc: 'Sağ Alt -> Sol Üst (Aparkat)', trigger: 'slash_diag_up_left' },
+    '4': { id: '4', name: "Gale Upper", type: 'OFFENSIVE', desc: 'Sol Alt -> Sağ Üst (Ters Aparkat)', trigger: 'slash_diag_up_right' },
+    '5': { id: '5', name: "Heartseeker", type: 'OFFENSIVE', desc: 'Göğüs hizasından ileri saplama (Thrust)', trigger: 'thrust_forward' },
+    '6': { id: '6', name: "Executioner’s Gavel", type: 'OFFENSIVE', desc: 'Baş üstünden bele dikey inme (Chop)', trigger: 'slash_vertical_down' },
+    '7': { id: '7', name: "Earthshaker", type: 'OFFENSIVE', desc: 'Baş üstünden yere kadar çökerek inme (Squat Chop)', trigger: 'slash_vertical_drop' },
+    '8': { id: '8', name: "Horizon Sweeper", type: 'OFFENSIVE', desc: 'Göğüs hizasında sağdan sola geniş savurma', trigger: 'slash_horizontal_left' },
+    '9': { id: '9', name: "Blade Hurricane", type: 'OFFENSIVE', desc: 'Göğüs hizasında soldan sağa geniş savurma', trigger: 'slash_horizontal_right' },
 
-    // SWAPPED 3 & 4 (Corrected)
-    '3': { id: '3', name: "Rising Dragon", type: 'SLASH', desc: 'Sol Alt -> Sağ Üst (Aparkat)', trigger: 'slash_diag_up_right' },
-    '4': { id: '4', name: "Gale Upper", type: 'SLASH', desc: 'Sağ Alt -> Sol Üst (Ters Aparkat)', trigger: 'slash_diag_up_left' },
+    // --- DEFENSIVE (Korunma - Bodyweight & Isometric) ---
+    '20': { id: '20', name: "Iron Stance", type: 'DEFENSIVE', desc: 'Göğüs hizasında tut + Squat (Çök/Bekle)', trigger: 'stance_iron' },
+    '21': { id: '21', name: "Aegis of Heavens", type: 'DEFENSIVE', desc: 'Baş üstünde tut + Squat', trigger: 'stance_aegis' },
+    '22': { id: '22', name: "Valkyrie’s Ward", type: 'DEFENSIVE', desc: 'Göğüs hizasında tut + Zıpla (Jump)', trigger: 'action_jump' },
+    '23': { id: '23', name: "Relentless Pursuit", type: 'DEFENSIVE', desc: 'Olduğun yerde koş (High Knees)', trigger: 'action_run' },
+    '24': { id: '24', name: "Dwarven Breaker", type: 'DEFENSIVE', desc: 'Kettlebell Swing (İki bacak arası savurma)', trigger: 'action_swing' },
+    '25': { id: '25', name: "Shadow Step", type: 'DEFENSIVE', desc: 'Göğüs hizasında tut + Sağa/Sola sıçra', trigger: 'action_dodge' },
 
-    '5': { id: '5', name: "Heartseeker", type: 'THRUST', desc: 'İleri Saplama (Thrust)', trigger: 'thrust_forward' },
-    '6': { id: '6', name: "Executioner’s Gavel", type: 'SLASH', desc: 'Dikey İniş (Chop)', trigger: 'slash_vertical_down' },
-    '7': { id: '7', name: "Earthshaker", type: 'SLASH', desc: 'Dikey Çöküş (Squat Chop)', trigger: 'slash_vertical_drop' },
-    '8': { id: '8', name: "Horizon Sweeper", type: 'SLASH', desc: 'Sağdan Sola (Yatay)', trigger: 'slash_horizontal_left' },
-    '9': { id: '9', name: "Blade Hurricane", type: 'SLASH', desc: 'Soldan Sağa (Yatay)', trigger: 'slash_horizontal_right' },
-
-    // --- DEFENSIVE (Korunma) ---
-    '20': { id: '20', name: "Iron Stance", type: 'STANCE', desc: 'Göğüs Hizasında Bekle (3sn)', trigger: 'stance_stable' },
-    '21': { id: '21', name: "Aegis of Heavens", type: 'STANCE', desc: 'Baş Üstü Koruma & Squat', trigger: 'stance_high' },
-    '22': { id: '22', name: "Valkyrie’s Ward", type: 'ACTION', desc: 'Korun & Zıpla', trigger: 'action_jump' },
-    '23': { id: '23', name: "Relentless Pursuit", type: 'ACTION', desc: 'Olduğun Yerde Koş', trigger: 'action_run' },
-    '24': { id: '24', name: "Dwarven Breaker", type: 'ACTION', desc: 'Kettlebell Swing', trigger: 'action_swing' },
-    '25': { id: '25', name: "Shadow Step", type: 'ACTION', desc: 'Sağa/Sola Sıçra', trigger: 'action_dodge' },
-
-    // --- MAGIC (Büyü) ---
-    '41': { id: '41', name: "Sigil of Banishing", type: 'PATTERN', desc: 'Havada X Çiz', trigger: 'pattern_x' },
-    '42': { id: '42', name: "Arcane Comet", type: 'PATTERN', desc: 'Daire Çiz + Fırlat', trigger: 'pattern_circle_throw' },
-    '43': { id: '43', name: "Nova Eruption", type: 'PATTERN', desc: 'Çök & Patla', trigger: 'pattern_squat_explode' },
-    '44': { id: '44', name: "Pentagram of Doom", type: 'PATTERN', desc: '5 Köşeli Yıldız', trigger: 'pattern_star' }
+    // --- MAGIC (Büyü - Pattern Recognition) ---
+    '41': { id: '41', name: "Sigil of Banishing", type: 'MAGIC', desc: 'Havada büyük "X" çizme', trigger: 'pattern_x' },
+    '42': { id: '42', name: "Arcane Comet", type: 'MAGIC', desc: 'Baş yanında daire çiz + İleri fırlat', trigger: 'pattern_circle_throw' },
+    '43': { id: '43', name: "Nova Eruption", type: 'MAGIC', desc: 'Çök (Toplan) + Kalkarken kolları aç (Patla)', trigger: 'pattern_squat_explode' },
+    '44': { id: '44', name: "Pentagram of Doom", type: 'MAGIC', desc: 'Havada 5 köşeli yıldız çizme', trigger: 'pattern_star' }
 };
 
 class MoveReferee {
@@ -499,27 +501,186 @@ class GameManager {
     }
 }
 
-class Simulator {
-    constructor() { }
-    triggerMove(moveId) { console.log("Simulating:", moveId); }
+class App {
+    constructor() {
+        this.mode = 'recorder'; // Default to recorder initially
+        this.recorder = new Recorder();
+
+        // Hide Nav initially
+        this.uiNav = document.getElementById('main-nav');
+
+        // Views
+        this.views = {
+            recorder: document.getElementById('view-recorder'),
+            test: document.getElementById('view-test'),
+            game: document.getElementById('view-game')
+        };
+
+        this.navBtns = {
+            recorder: document.getElementById('nav-recorder'),
+            test: document.getElementById('nav-test'),
+            game: document.getElementById('nav-game')
+        };
+    }
+
+    enableNav() {
+        this.uiNav.style.display = 'block';
+        this.setMode('recorder'); // Start in Recorder mode
+    }
+
+    setMode(mode) {
+        this.mode = mode;
+        console.log("App Mode:", mode);
+
+        // Hide all views
+        Object.values(this.views).forEach(el => el.style.display = 'none');
+        Object.values(this.navBtns).forEach(el => el.style.background = '#333');
+
+        // Show selected
+        if (this.views[mode]) this.views[mode].style.display = 'block';
+        if (this.navBtns[mode]) this.navBtns[mode].style.background = 'var(--primary)';
+
+        // Logic hooks
+        if (mode === 'game') {
+            gameManager.startRandomGame();
+        } else {
+            // Stop game loop if leaving game
+            // gameManager.stop(); // Todo if needed
+        }
+
+        if (mode === 'test') {
+            // Enable Referee analyzing for Debug
+            referee.setTargetCallback((id, score) => {
+                document.getElementById('test-result').innerText = MOVE_LIST[id].name;
+                document.getElementById('test-result').style.color = "#00ff00";
+                setTimeout(() => document.getElementById('test-result').style.color = "#00f3ff", 200);
+            });
+        }
+    }
+}
+
+class Recorder {
+    constructor() {
+        this.isRecording = false;
+        this.dataBuffer = [];
+        this.startTime = 0;
+
+        this.uiSelect = document.getElementById('record-select');
+        this.uiStatus = document.getElementById('rec-status');
+        this.uiOutput = document.getElementById('rec-output');
+        this.btnStart = document.getElementById('btn-rec-start');
+        this.btnCopy = document.getElementById('btn-rec-copy');
+
+        this.populateList();
+        this.bindEvents();
+    }
+
+    populateList() {
+        this.uiSelect.innerHTML = '';
+        Object.values(MOVE_LIST).forEach(move => {
+            const opt = document.createElement('option');
+            opt.value = move.id;
+            opt.innerText = `${move.id}. ${move.name} (${move.type})`;
+            this.uiSelect.appendChild(opt);
+        });
+    }
+
+    bindEvents() {
+        this.btnStart.addEventListener('click', () => {
+            if (this.isRecording) return;
+            this.startCountdown();
+        });
+
+        this.btnCopy.addEventListener('click', () => {
+            this.uiOutput.select();
+            document.execCommand('copy');
+            navigator.clipboard.writeText(this.uiOutput.value);
+            this.btnCopy.innerText = "KOPYALANDI!";
+            setTimeout(() => this.btnCopy.innerText = "KOPYALA", 2000);
+        });
+    }
+
+    startCountdown() {
+        this.uiStatus.innerText = "HAZIRLAN (3)...";
+        this.uiOutput.style.display = 'none';
+
+        let count = 3;
+        const timer = setInterval(() => {
+            count--;
+            if (count > 0) {
+                this.uiStatus.innerText = `HAZIRLAN (${count})...`;
+            } else {
+                clearInterval(timer);
+                this.startRecording();
+            }
+        }, 1000);
+    }
+
+    startRecording() {
+        this.isRecording = true;
+        this.dataBuffer = [];
+        this.startTime = Date.now();
+        this.uiStatus.innerText = "KAYDEDİLİYOR... (HAREKETİ YAP)";
+        this.uiStatus.style.color = "#ff0055";
+
+        // Auto-stop after 2.5 seconds
+        setTimeout(() => {
+            this.stopRecording();
+        }, 2500);
+    }
+
+    stopRecording() {
+        this.isRecording = false;
+        this.uiStatus.innerText = "KAYIT TAMAMLANDI.";
+        this.uiStatus.style.color = "#00ff00";
+        this.processData();
+    }
+
+    capture(accel, gyro) {
+        if (!this.isRecording) return;
+        const t = Date.now() - this.startTime;
+        this.dataBuffer.push({
+            t: t,
+            ax: Number(accel.x.toFixed(3)),
+            ay: Number(accel.y.toFixed(3)),
+            az: Number(accel.z.toFixed(3)),
+            gx: Number(gyro.alpha.toFixed(1)),
+            gy: Number(gyro.beta.toFixed(1)),
+            gz: Number(gyro.gamma.toFixed(1))
+        });
+    }
+
+    processData() {
+        const moveId = this.uiSelect.value;
+        const moveName = MOVE_LIST[moveId].name;
+        const output = {
+            moveId: moveId,
+            moveName: moveName,
+            timestamp: new Date().toISOString(),
+            samples: this.dataBuffer
+        };
+
+        const jsonStr = JSON.stringify(output, null, 2);
+        this.uiOutput.value = jsonStr;
+        this.uiOutput.style.display = 'block';
+        this.btnCopy.style.display = 'block';
+    }
 }
 
 // Global Init
 window.sensorManager = new SensorManager();
 window.referee = new MoveReferee();
 window.gameManager = new GameManager();
-window.app = new App(); // Re-add App class to file? Wait, I might have missed App class in this write. Let's fix quickly by adding minimal App if needed or assume user can use Recorder mode later.
-// Actually App class is needed for Recorder. I should include it. But for now let's prioritize Debug Referee.
-// Adding minimal App class just in case.
-window.app = {
-    mode: 'referee',
-    setMode: (m) => { console.log("Mode:", m); },
-    recorder: { start: () => { }, stop: () => { } }
-};
+
+// App Init (Wait for Load)
+window.addEventListener('load', () => {
+    window.app = new App();
+});
 
 document.getElementById('btn-connect').addEventListener('click', () => {
     sensorManager.requestPermission();
     document.getElementById('btn-connect').style.display = 'none';
-    setTimeout(() => { gameManager.startRandomGame(); }, 1000);
-    sensorManager.startCalibration();
+
+    // Unlock Navigation
+    window.app.enableNav();
 });

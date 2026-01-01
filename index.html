@@ -14,89 +14,87 @@
 <body>
 
     <div class="container">
-        <h1>MOTION REFEREE <span style="font-size: 14px; color: #555;">V3.1</span></h1>
+        <h1>MOTION HERO <span style="font-size: 14px; color: #555;">V4.0 (Prayer Grip)</span></h1>
 
+        <!-- Connection Status -->
         <div id="sensor-status" class="status-indicator">Sensör: BEKLİYOR</div>
+        <button id="btn-connect" class="btn-primary">BAĞLAN & KALİBRE ET</button>
 
-        <!-- SENSOR DEBUG VALUES -->
-        <div style="font-family: monospace; font-size: 10px; color: #555; margin-bottom: 20px;">
-            ACC: <span id="val-accel">0,0,0</span><br>
-            GYR: <span id="val-gyro">0,0,0</span><br>
-            MAX: <span id="val-max">0</span>
+        <!-- DEBUG VALUES (Helper) -->
+        <div style="font-family: monospace; font-size: 10px; color: #555; margin-top: 5px;">
+            ACC: <span id="val-accel">0,0,0</span> | MAX: <span id="val-max">0</span>
         </div>
 
-        <button id="btn-connect" class="btn-primary">SENSÖRLERİ BAĞLA</button>
-        <button id="btn-calibrate" class="btn-secondary" style="display:none; margin-top:10px;">KALİBRE ET (Iron
-            Stance)</button>
+        <hr style="border-color: #333; margin: 15px 0;">
 
-        <div class="feedback" id="feedback-message">HAREKET BEKLENİYOR...</div>
-
-        <!-- DEBUG PANEL (New) -->
-        <div id="debug-panel"
-            style="background: rgba(0,0,0,0.8); padding: 15px; margin-top: 10px; border-radius: 8px; border: 1px solid #555; font-family: monospace; font-size: 14px; color: #00ff00;">
-            <div style="color: #aaa; margin-bottom: 5px;">SON DENEME ANALİZİ:</div>
-            <div>YÖN (X,Y): <span id="dbg-vector" style="color: white; font-weight: bold;">--</span></div>
-            <div>GÜÇ (Force): <span id="dbg-force" style="color: white;">--</span></div>
-            <div>EĞİM (Pitch): <span id="dbg-pitch" style="color: white;">--</span></div>
-            <div id="dbg-result" style="margin-top: 5px; color: #ff5500;"></div>
-        </div>
-
-        <div class="target-display">
-            HEDEF: <span id="target-move">...</span>
-        </div>
-        <div class="instruction-label">...</div>
-
-        <!-- SCORE -->
-        <div id="accuracy-display"
-            style="margin-top: 20px; font-size: 24px; font-weight: bold; opacity: 0; transition: opacity 0.3s;">
-            DOĞRULUK: <span id="score-val" style="color: #00ff00;">0%</span>
-        </div>
-
-        <!-- SIMULATOR CONTROLS -->
-        <div class="controls">
-            <h3>SİMÜLATÖR (PC İçin)</h3>
-            <div class="grid-buttons">
-                <button onclick="simulator.triggerMove('1')">Vanguard</button>
-                <button onclick="simulator.triggerMove('2')">Sinister</button>
-                <button onclick="simulator.triggerMove('3')">Rising Dragon</button>
-                <button onclick="simulator.triggerMove('4')">Gale Upper</button>
-                <button onclick="simulator.triggerMove('5')">Heartseeker</button>
-                <button onclick="simulator.triggerMove('20')">Iron Stance</button>
-                <button onclick="simulator.triggerMove('41')">Sigil (Magic)</button>
+        <!-- MAIN NAVIGATION -->
+        <div id="main-nav" style="display: none; margin-bottom: 20px;">
+            <div style="display: flex; gap: 5px;">
+                <button onclick="app.setMode('recorder')" class="nav-btn" id="nav-recorder"
+                    style="flex:1;">KAYIT</button>
+                <button onclick="app.setMode('test')" class="nav-btn" id="nav-test" style="flex:1;">DENEME</button>
+                <button onclick="app.setMode('game')" class="nav-btn" id="nav-game" style="flex:1;">OYUN</button>
             </div>
         </div>
 
-        <!-- APP MODE SWITCHER -->
-        <div class="mode-switch" style="margin-top: 30px; border-top: 1px solid #333; padding-top: 10px;">
-            <button id="btn-mode-referee"
-                style="width: 45%; font-size: 12px; background: var(--primary); color: black;">HAKEM MODU</button>
-            <button id="btn-mode-recorder" style="width: 45%; font-size: 12px;">KAYIT MODU</button>
-        </div>
+        <!-- ================= VIEWS ================= -->
 
-        <!-- REFEREE PANEL (Default) -->
-        <div id="combat-display">
-            <!-- Content above handles this -->
-        </div>
+        <!-- VIEW 1: RECORDER -->
+        <div id="view-recorder" class="app-view" style="display: none;">
+            <h3>VERİ KAYIT</h3>
+            <div class="hint-text">
+                Telefonu iki avucunuzun arasında <b>DİK</b> tutun (Prayer Grip).<br>
+                Listeden hareketi seçip "KAYDI BAŞLAT" diyerek hareketi yapın.
+            </div>
 
-        <!-- RECORDER PANEL (Hidden) -->
-        <div id="recorder-panel" style="display: none; margin-top: 20px;">
-            <h3>VERİ KAYDEDİCİ</h3>
-            <select id="record-select" style="width: 100%; padding: 10px; background: #333; color: white;">
-                <option value="1">1. Vanguard's Cleave</option>
-                <option value="2">2. Sinister Slash</option>
-                <option value="3">3. Rising Dragon</option>
-                <option value="4">4. Gale Upper</option>
-                <option value="5">5. Heartseeker</option>
-                <option value="6">6. Executioner</option>
-                <option value="7">7. Earthshaker</option>
-                <option value="8">8. Horizon</option>
-                <option value="9">9. Blade Hurricane</option>
-                <option value="20">20. Iron Stance</option>
-                <option value="22">22. Valkyrie Jump</option>
+            <select id="record-select"
+                style="width: 100%; padding: 10px; background: #333; color: white; margin-top: 10px;">
+                <!-- Populated by JS -->
             </select>
-            <div id="rec-status" style="margin: 10px 0; font-size: 12px; color: #aaa;">Hazır</div>
-            <button id="btn-rec-start" class="btn-primary" style="background: #ff0055;">KAYDI BAŞLAT</button>
-            <button id="btn-rec-stop" class="btn-secondary" style="display: none;">DURDUR & İNDİR</button>
+
+            <div id="rec-status" style="margin: 10px 0; font-size: 16px; font-weight:bold; color: #fff;">Hazır</div>
+
+            <div style="display: flex; gap: 10px;">
+                <button id="btn-rec-start" class="btn-primary" style="background: #ff0055;">BAŞLAT (3sn)</button>
+                <button id="btn-rec-copy" class="btn-secondary" style="display: none;">KOPYALA</button>
+            </div>
+
+            <textarea id="rec-output"
+                style="width: 100%; height: 100px; background: #111; color: #0f0; border: 1px solid #444; margin-top: 10px; font-size: 10px; display:none;"
+                readonly></textarea>
+        </div>
+
+        <!-- VIEW 2: TEST MODE -->
+        <div id="view-test" class="app-view" style="display: none;">
+            <h3>SERBEST DENEME</h3>
+            <div class="hint-text">İstediğiniz hareketi yapın, sistem tahmin etmeye çalışacak.</div>
+
+            <div id="test-result"
+                style="font-size: 24px; font-weight: bold; color: #00f3ff; margin: 20px 0; min-height: 40px;">
+                ...
+            </div>
+
+            <div id="debug-panel"
+                style="background: rgba(0,0,0,0.8); padding: 15px; border-radius: 8px; border: 1px solid #555; font-family: monospace; font-size: 12px; color: #00ff00; text-align: left;">
+                <div>VEC (X,Y): <span id="dbg-vector" style="color: white;">--</span></div>
+                <div>FORCE: <span id="dbg-force" style="color: white;">--</span></div>
+                <div>GYRO (d/dt): <span id="dbg-gyro" style="color: white;">--</span></div>
+            </div>
+        </div>
+
+        <!-- VIEW 3: GAME MODE -->
+        <div id="view-game" class="app-view" style="display: none;">
+            <h3>MOVE HERO</h3>
+            <div class="target-display">
+                HEDEF: <span id="target-move">...</span>
+            </div>
+            <div class="instruction-label" style="margin-bottom: 20px;">...</div>
+
+            <div id="feedback-message" class="feedback">HAZIRLAN...</div>
+
+            <div id="accuracy-display" style="font-size: 18px; color: #aaa; margin-top: 10px;">
+                SKOR: <span id="score-val" style="color: white;">0</span>
+            </div>
         </div>
     </div>
 

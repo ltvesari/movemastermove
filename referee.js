@@ -664,6 +664,25 @@ document.getElementById('btn-rec-stop').addEventListener('click', () => {
     document.getElementById('rec-status').style.color = "lime";
 });
 
+// Mode Switchers
+document.getElementById('btn-mode-referee').addEventListener('click', () => {
+    app.setMode('referee');
+    // Update button styles
+    document.getElementById('btn-mode-referee').style.background = 'var(--primary)';
+    document.getElementById('btn-mode-referee').style.color = 'black';
+    document.getElementById('btn-mode-recorder').style.background = 'rgba(0, 0, 0, 0.5)';
+    document.getElementById('btn-mode-recorder').style.color = 'var(--text-main)';
+});
+
+document.getElementById('btn-mode-recorder').addEventListener('click', () => {
+    app.setMode('recorder');
+    // Update button styles
+    document.getElementById('btn-mode-recorder').style.background = 'var(--secondary)';
+    document.getElementById('btn-mode-recorder').style.color = 'black';
+    document.getElementById('btn-mode-referee').style.background = 'rgba(0, 0, 0, 0.5)';
+    document.getElementById('btn-mode-referee').style.color = 'var(--text-main)';
+});
+
 document.getElementById('btn-connect').addEventListener('click', () => {
     sensorManager.requestPermission();
     document.getElementById('btn-connect').style.display = 'none';

@@ -145,7 +145,7 @@ const MOVE_LIST = {
     '9': { id: '9', name: "Blade Hurricane", type: 'SLASH', desc: 'Soldan Sağa (Yatay)', trigger: 'slash_horizontal_right' },
 
     // --- DEFENSIVE (Korunma) ---
-    '20': { id: '20', name: "Iron Stance", type: 'STANCE', desc: 'Squat & Bekle', trigger: 'stance_stable' },
+    '20': { id: '20', name: "Iron Stance", type: 'STANCE', desc: 'Göğüs Hizasında Bekle (3sn)', trigger: 'stance_stable' },
     '21': { id: '21', name: "Aegis of Heavens", type: 'STANCE', desc: 'Baş Üstü Koruma & Squat', trigger: 'stance_high' },
     '22': { id: '22', name: "Valkyrie’s Ward", type: 'ACTION', desc: 'Korun & Zıpla', trigger: 'action_jump' },
     '23': { id: '23', name: "Relentless Pursuit", type: 'ACTION', desc: 'Olduğun Yerde Koş', trigger: 'action_run' },
@@ -180,8 +180,8 @@ class MoveReferee {
         this.targetMoveId = moveId;
         this.isEvaluatingStance = false;
 
-        // If Iron Stance, we start evaluating immediately
-        if (moveId === '20') {
+        // If Stance Moves (20: Iron Stance, 21: Aegis), start evaluating
+        if (moveId === '20' || moveId === '21') {
             this.startStanceEvaluation();
         }
     }
@@ -196,16 +196,65 @@ class MoveReferee {
         // --- DETECTION LOGIC CHAIN ---
 
         // 1. STANCE (Continuous Check)
-        if (this.targetMoveId === '20') {
-            this.checkStance(accel, gyro);
-            return; // Don't check others if doing stance
+        if (this.targetMoveId === '20' || this.targetMoveId === '21') {
+            this.checkStance(accel, gyro, force);
+            return;
         }
 
-        // 2. OFFENSIVE (Triggered by Force)
+        // 2. ACTION (Discrete Movements like Jump, Run)
+        if (['22', '23', '24', '25'].includes(this.targetMoveId)) {
+            this.checkAction(accel, gyro, force);
+            return;
+        }
+
+        // 3. OFFENSIVE (Triggered by Force)
         // ACCESSIBILITY UPDATE: Lowered from 15 to 8 to allow "Casual" swings
         const SWING_THRESHOLD = 8;
         if (force > SWING_THRESHOLD) {
             this.classifyOffensive();
+        }
+    }
+    // ... (skipping classifyOffensive for brevity, assuming tool merges correctly) ...
+    startStanceEvaluation() {
+        this.isEvaluatingStance = true;
+        this.stanceStartTime = Date.now();
+        this.stanceFailed = false;
+        this.showFeedback("SABİT DUR... (3sn)");
+        this.maxStabilityError = 0;
+    }
+
+    checkStance(accel, gyro, force) {
+        if (!this.isEvaluatingStance) return;
+
+        // Stability Score
+        // Error = Gyro Rotation + Force Fluctuation
+        // We want force to be roughly 0 (after gravity offset removal) or steady gravity
+        // Since 'force' is based on accel-offsets, it should be close to 0 if still.
+
+        let gyroError = Math.abs(gyro.alpha) + Math.abs(gyro.beta) + Math.abs(gyro.gamma);
+        let forceError = force * 10; // Scale force to be comparable to degrees
+
+        let currentError = gyroError + forceError;
+
+        if (currentError > this.maxStabilityError) this.maxStabilityError = currentError;
+
+        if (currentError > 100) {
+            this.showFeedback("ÇOK HAREKETLİ!", "#ff5500");
+            // Reset timer?
+            this.stanceStartTime = Date.now();
+            this.maxStabilityError = 0;
+        }
+
+        const duration = Date.now() - this.stanceStartTime;
+
+        if (duration > 3000) {
+            this.isEvaluatingStance = false;
+
+            // Calculate Score
+            let stabilityScore = Math.max(0, 100 - (this.maxStabilityError));
+
+            // Trigger whatever the target was (20 or 21)
+            this.triggerMove(this.targetMoveId, Math.floor(stabilityScore));
         }
     }
 
@@ -213,11 +262,16 @@ class MoveReferee {
         if (this.history.length < 5) return;
 
         // --- VECTOR ANALYSIS (Hybrid Approach) ---
-        // User Request: "Sola ve Aşağı doğru G kuvveti" (Left + Down)
+        // Priority: Specific Vectors (Up/Thrust) -> General Vectors (Left/Right)
 
         let sumX = 0, sumY = 0;
         let maxX = 0, maxY = 0;
         let maxForce = 0;
+
+        // Gyro Analysis for Vertical Separation
+        const start = this.history[0].g;
+        const end = this.history[this.history.length - 1].g;
+        const deltaBeta = Math.abs(end.beta - start.beta); // Pitch Change (Vertical Swing)
 
         this.history.forEach(h => {
             sumX += h.a.x;
@@ -231,47 +285,91 @@ class MoveReferee {
         const avgX = sumX / this.history.length;
         const avgY = sumY / this.history.length;
 
-        console.log(`VECTOR: avgX=${avgX.toFixed(1)}, avgY=${avgY.toFixed(1)}, Force=${maxForce.toFixed(1)}`);
+        console.log(`VECTOR: avgX=${avgX.toFixed(1)}, avgY=${avgY.toFixed(1)}, dBeta=${deltaBeta.toFixed(0)}, Force=${maxForce.toFixed(1)}`);
 
         let detectedId = null;
 
-        // 1. VANGUARD (Left + Strong Force)
-        // ACCESSIBILITY RULES:
-        // Force > 8 (Easy to hit)
-        // X < -1 (Just need *some* Left vector)
-        if (avgX < -1 && maxForce > 8) {
-            console.log("-> VECTOR MATCH: Vanguard (Left)");
+        // --- TIER 1: COMPLEX / SPECIFIC MOVES ---
+
+        // 3. RISING DRAGON (Left + Up)
+        if (avgX < -1 && avgY > 2 && maxForce > 8) {
+            console.log("-> MATCH: Rising Dragon (Up-Left)");
+            detectedId = '3';
+        }
+
+        // 4. GALE UPPER (Right + Up)
+        else if (avgX > 1 && avgY > 2 && maxForce > 8) {
+            console.log("-> MATCH: Gale Upper (Up-Right)");
+            detectedId = '4';
+        }
+
+        // 6. EXECUTIONER'S GAVEL (Vertical Chop)
+        // High Force, Minimal X, High Pitch Rotation (Swing down)
+        // Vector: Strong Y (Centrifugal)
+        else if (maxForce > 10 && Math.abs(avgX) < 2.5 && deltaBeta > 30) {
+            console.log("-> MATCH: Executioner (Chop Down)");
+            detectedId = '6';
+        }
+
+        // 7. EARTHSHAKER (Vertical Drop / Squat)
+        // User: "Lift up and bring down to ground".
+        // Physics: Linear Downward Acceleration (Negative Y)
+        // Distinction: Low Rotation (unlike Executioner)
+        else if (maxForce > 8 && avgY < -2 && deltaBeta < 30) {
+            console.log("-> MATCH: Earthshaker (Drop)");
+            detectedId = '7';
+        }
+
+        // 8. HORIZON SWEEPER (Right -> Left, Flat)
+        // Request: "Height unchanged, Right to Left accel"
+        // Vector: Strong Left (Neg X), Minimal Y (Flat)
+        else if (avgX < -2 && Math.abs(avgY) < 2 && maxForce > 8) {
+            console.log("-> MATCH: Horizon Sweeper (Flat Left)");
+            detectedId = '8';
+        }
+
+        // 9. BLADE HURRICANE (Left -> Right, Flat)
+        // Request: "Height unchanged, Left to Right accel"
+        // Vector: Strong Right (Pos X), Minimal Y (Flat)
+        else if (avgX > 2 && Math.abs(avgY) < 2 && maxForce > 8) {
+            console.log("-> MATCH: Blade Hurricane (Flat Right)");
+            detectedId = '9';
+        }
+
+        // 5. HEARTSEEKER (Thrust)
+        // High Force, Minimal X, Minimal Pitch Rotation (Stab)
+        // Also ensure it's not a drop (AvgY should be positive or neutral, not strongly negative)
+        else if (maxForce > 8 && Math.abs(avgX) < 2 && deltaBeta < 30 && avgY > -1) {
+            console.log("-> MATCH: Heartseeker (Thrust)");
+            detectedId = '5';
+        }
+
+        // --- TIER 2: BASIC SWINGS (Fallback) ---
+
+        // 1. VANGUARD (Left)
+        else if (avgX < -1 && maxForce > 8) {
+            console.log("-> MATCH: Vanguard (Left)");
             detectedId = '1';
         }
 
-        // 2. SINISTER (Right + Strong Force)
+        // 2. SINISTER (Right)
         else if (avgX > 1 && maxForce > 8) {
-            console.log("-> VECTOR MATCH: Sinister (Right)");
+            console.log("-> MATCH: Sinister (Right)");
             detectedId = '2';
-        }
-
-        // 3. HEARTSEEKER (Thrust)
-        else if (maxForce > 10 && Math.abs(avgX) < 1.5) {
-            detectedId = '5';
         }
 
         // --- SCORING & FEEDBACK ---
         if (detectedId) {
-            // Force Score
-            // 8 -> 50%
-            // 20+ -> 100%
-            let intensityScore = Math.min(((maxForce - 8) / 12) * 50, 50); // 0-50 pts based on force above 8
-            let totalScore = Math.floor(50 + intensityScore); // Base 50 for succeeding
-
+            let intensityScore = Math.min(((maxForce - 8) / 12) * 50, 50);
+            let totalScore = Math.floor(50 + intensityScore);
             this.triggerMove(detectedId, totalScore);
         } else {
-            // Logic failed but force was reasonably high?
-            if (maxForce > 10) {
+            if (maxForce > 12) {
                 let hint = "NET BİR YÖN BELİRLE!";
-
-                if (Math.abs(avgX) < 1) hint = "DAHA GENİŞ SAVUR";
-                else if (this.targetMoveId === '1' && avgX > 0) hint = "SOLA VUR!";
-                else if (this.targetMoveId === '2' && avgX < 0) hint = "SAĞA VUR!";
+                if (Math.abs(avgY) > 3 && deltaBeta > 20) hint = "DAHA DİK İNDİR!"; // Executioner fail?
+                else if (this.targetMoveId === '5' && deltaBeta > 30) hint = "BİLEĞİNİ BÜKME! (Düz Sapla)";
+                else if (avgX > 0) hint = "SOLA?";
+                else if (avgX < 0) hint = "SAĞA?";
 
                 this.triggerFail(hint);
             }

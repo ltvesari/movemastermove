@@ -218,84 +218,65 @@ class MoveReferee {
     }
 
     classifyOffensive() {
-        if (this.history.length < 10) return;
+        if (this.history.length < 5) return;
 
-        const start = this.history[0].g;
-        const end = this.history[this.history.length - 1].g;
-        const deltaGamma = end.gamma - start.gamma; // Roll (Left/Right)
+        // --- VECTOR ANALYSIS (Hybrid Approach) ---
+        // User Request: "Sola ve Aşağı doğru G kuvveti" (Left + Down)
 
-        // Calculate Max Forces
+        let sumX = 0, sumY = 0;
+        let maxX = 0, maxY = 0;
         let maxForce = 0;
-        this.history.forEach(h => { if (h.f > maxForce) maxForce = h.f; });
 
-        // DEBUG: Print analysis to console (and optionally UI)
-        console.log(`Analyzing: Force=${maxForce.toFixed(1)}, dGamma=${deltaGamma.toFixed(1)}, StartG=${start.gamma.toFixed(1)}`);
+        this.history.forEach(h => {
+            sumX += h.a.x;
+            sumY += h.a.y;
 
-        // Update UI Debug temporarily if needed
-        const debugEl = document.getElementById('feedback-message');
-        // debugEl.innerText = `G: ${start.gamma.toFixed(0)} -> ${end.gamma.toFixed(0)} (d:${deltaGamma.toFixed(0)})`;
+            if (Math.abs(h.a.x) > Math.abs(maxX)) maxX = h.a.x;
+            if (h.a.y > maxY) maxY = h.a.y;
+            if (h.f > maxForce) maxForce = h.f;
+        });
+
+        const avgX = sumX / this.history.length;
+        const avgY = sumY / this.history.length;
+
+        console.log(`VECTOR: avgX=${avgX.toFixed(1)}, avgY=${avgY.toFixed(1)}, Force=${maxForce.toFixed(1)}`);
 
         let detectedId = null;
 
-        // 1. VANGUARD'S CLEAVE (Right -> Left)
-        // Relaxed Rule: 
-        // - Start Right (> 10)
-        // - SWEEP Left (Delta < -30)
-        // (Removed strict 'End < -15' check because trigger might happen mid-swing)
-        if (start.gamma > 10 && deltaGamma < -30) {
+        // 1. VANGUARD (Left + Strong Force)
+        // Physics: Left Accel (Neg X) is primary.
+        // User said: "Sola ve Aşağı".
+        // If we trust the vector, Left is Neg X.
+        // If "Down" means vertical chop, Y axis also matters.
+        if (avgX < -2 && maxForce > 12) {
+            console.log("-> VECTOR MATCH: Vanguard (Left)");
             detectedId = '1';
         }
 
-        // 2. SINISTER SLASH (Left -> Right)
-        // Relaxed Rule:
-        // - Start Left (< -10)
-        // - SWEEP Right (Delta > 30)
-        else if (start.gamma < -10 && deltaGamma > 30) {
+        // 2. SINISTER (Right + Strong Force)
+        else if (avgX > 2 && maxForce > 12) {
+            console.log("-> VECTOR MATCH: Sinister (Right)");
             detectedId = '2';
         }
 
         // 3. HEARTSEEKER (Thrust)
-        // High Force, Low Rotation
-        else if (maxForce > 15 && Math.abs(deltaGamma) < 20) {
+        else if (maxForce > 15 && Math.abs(avgX) < 2) {
             detectedId = '5';
         }
 
-        // --- FALLBACK / UNKNOWN ---
-        // If high force but no pattern matched, maybe generic slash?
-        // Let's NOT trigger generic to avoid confusion during calibration.
-        // User needs to hit the specific anatomical cue.
-
-        // --- SCORING ---
+        // --- SCORING & FEEDBACK ---
         if (detectedId) {
-            console.log(`MATCHED: ${detectedId}`);
-
             // Force Score
-            let forceScore = Math.min((maxForce / 30) * 100, 100);
-            let sweepScore = Math.min((Math.abs(deltaGamma) / 60) * 100, 100);
-            let totalScore = Math.floor((forceScore * 0.4) + (sweepScore * 0.6));
-
-            this.triggerMove(detectedId, totalScore);
+            let forceScore = Math.min((maxForce / 35) * 100, 100);
+            this.triggerMove(detectedId, Math.floor(forceScore));
         } else {
-            // NO MATCH but High Force -> Provide meaningful feedback
+            // Logic failed but force was high?
             if (maxForce > 15) {
-                // Analyze why it failed
-                let hint = "YANLIŞ HAREKET";
+                let hint = "NET BİR YÖN BELİRLE!";
 
-                // Check if it was a flat swing (no rotation)
-                if (Math.abs(deltaGamma) < 20) hint = "BİLEĞİNİ ÇEVİR!";
-
-                // Check Direction for Vanguard (Target 1)
-                else if (this.targetMoveId === '1') {
-                    if (start.gamma < 0) hint = "SAĞDA BAŞLA!";
-                    else if (deltaGamma > 0) hint = "TERS YÖN!";
-                    else hint = "AÇI YETERSİZ!";
-                }
-                // Check Direction for Sinister (Target 2)
-                else if (this.targetMoveId === '2') {
-                    if (start.gamma > 0) hint = "SOLDA BAŞLA!";
-                    else if (deltaGamma < 0) hint = "TERS YÖN!";
-                    else hint = "AÇI YETERSİZ!";
-                }
+                if (Math.abs(avgX) < 2) hint = "SAVURMA YÖNÜ BELİRSİZ";
+                else if (this.targetMoveId === '1' && avgX > 0) hint = "SOLA VUR!";
+                else if (this.targetMoveId === '2' && avgX < 0) hint = "SAĞA VUR!";
 
                 this.triggerFail(hint);
             }

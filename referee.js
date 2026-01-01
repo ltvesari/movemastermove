@@ -129,9 +129,12 @@ class SensorManager {
 
     updateUI() {
         if (!this.uiAccel) return;
-        this.uiAccel.innerText = `${this.accel.x.toFixed(1)}, ${this.accel.y.toFixed(1)}, ${this.accel.z.toFixed(1)}`;
-        this.uiGyro.innerText = `${this.gyro.alpha.toFixed(0)}, ${this.gyro.beta.toFixed(0)}, ${this.gyro.gamma.toFixed(0)}`;
-        this.uiMax.innerText = this.maxForce.toFixed(1);
+        this.eventCount = (this.eventCount || 0) + 1;
+        if (this.eventCount % 10 === 0) { // Optimize: Only update DOM every 10 frames
+            this.uiAccel.innerText = `${this.accel.x.toFixed(1)}, ${this.accel.y.toFixed(1)}, ${this.accel.z.toFixed(1)}`;
+            this.uiGyro.innerText = `${this.gyro.alpha.toFixed(0)}, ${this.gyro.beta.toFixed(0)}, ${this.gyro.gamma.toFixed(0)}`;
+            document.getElementById('val-events').innerText = this.eventCount;
+        }
     }
 }
 

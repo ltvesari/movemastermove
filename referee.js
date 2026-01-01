@@ -220,9 +220,6 @@ class MoveReferee {
     classifyOffensive() {
         if (this.history.length < 10) return;
 
-        // --- ANATOMICAL ANALYSIS ---
-        // We look at the "Sweep" of the motion.
-
         const start = this.history[0].g;
         const end = this.history[this.history.length - 1].g;
         const deltaGamma = end.gamma - start.gamma; // Roll (Left/Right)
@@ -231,47 +228,60 @@ class MoveReferee {
         let maxForce = 0;
         this.history.forEach(h => { if (h.f > maxForce) maxForce = h.f; });
 
+        // DEBUG: Print analysis to console (and optionally UI)
+        console.log(`Analyzing: Force=${maxForce.toFixed(1)}, dGamma=${deltaGamma.toFixed(1)}, StartG=${start.gamma.toFixed(1)}`);
+
+        // Update UI Debug temporarily if needed
+        const debugEl = document.getElementById('feedback-message');
+        // debugEl.innerText = `G: ${start.gamma.toFixed(0)} -> ${end.gamma.toFixed(0)} (d:${deltaGamma.toFixed(0)})`;
+
         let detectedId = null;
 
-        // 1. VANGUARD'S CLEAVE (Sag Ust -> Sol Alt)
-        // Description: Right Shoulder to Left Hip.
-        // Physics: 
-        // - START: Tilted Right (Gamma significantly Positive)
-        // - MOTION: Sweeps Left (Gamma decreases drastically)
-        // - END: Tilted Left (Gamma Negative)
-        if (start.gamma > 15 && end.gamma < -15 && deltaGamma < -40) {
-            console.log("-> ANATOMICAL MATCH: Vanguard's Cleave");
+        // 1. VANGUARD'S CLEAVE (Right -> Left)
+        // Relaxed Rule: 
+        // - Start Right (> 10)
+        // - SWEEP Left (Delta < -30)
+        // (Removed strict 'End < -15' check because trigger might happen mid-swing)
+        if (start.gamma > 10 && deltaGamma < -30) {
             detectedId = '1';
         }
 
-        // 2. SINISTER SLASH (Sol Ust -> Sag Alt)
-        // Description: Left Shoulder to Right Hip.
-        // Physics:
-        // - START: Tilted Left (Gamma significantly Negative)
-        // - MOTION: Sweeps Right (Gamma increases drastically)
-        // - END: Tilted Right (Gamma Positive)
-        else if (start.gamma < -15 && end.gamma > 15 && deltaGamma > 40) {
-            console.log("-> ANATOMICAL MATCH: Sinister Slash");
+        // 2. SINISTER SLASH (Left -> Right)
+        // Relaxed Rule:
+        // - Start Left (< -10)
+        // - SWEEP Right (Delta > 30)
+        else if (start.gamma < -10 && deltaGamma > 30) {
             detectedId = '2';
         }
 
         // 3. HEARTSEEKER (Thrust)
-        // Description: Stab Forward.
-        // Physics: Little rotation change, high forward/linear acceleration.
-        // (Keeping existing logic for now as user focused on slashes)
+        // High Force, Low Rotation
         else if (maxForce > 15 && Math.abs(deltaGamma) < 20) {
             detectedId = '5';
         }
 
+        // --- FALLBACK / UNKNOWN ---
+        // If high force but no pattern matched, maybe generic slash?
+        // Let's NOT trigger generic to avoid confusion during calibration.
+        // User needs to hit the specific anatomical cue.
+
         // --- SCORING ---
         if (detectedId) {
+            console.log(`MATCHED: ${detectedId}`);
 
-            let rotationMag = Math.abs(deltaGamma) + Math.abs(deltaBeta);
-            // Ideal rotation sum ~ 60-90 degrees
-            let rotationScore = Math.min((rotationMag / 60) * 100, 100);
+            // Force Score
+            let forceScore = Math.min((maxForce / 30) * 100, 100);
 
-            score = Math.floor((forceScore * 0.4) + (rotationScore * 0.6));
-            this.triggerMove(detectedId, score);
+            // Accuracy: Sweep Magnitude
+            let sweepScore = Math.min((Math.abs(deltaGamma) / 60) * 100, 100);
+
+            let totalScore = Math.floor((forceScore * 0.4) + (sweepScore * 0.6));
+            this.triggerMove(detectedId, totalScore);
+        } else {
+            // Optional: Provide "Tip" feedback on screen if force was high enough but logic failed
+            if (maxForce > 20) {
+                // this.showFeedback(`AÇI YETERSİZ! (${deltaGamma.toFixed(0)}°)`);
+            }
         }
     }
 

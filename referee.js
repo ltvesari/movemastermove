@@ -590,11 +590,12 @@ class App {
 }
 
 // Init
-const sensorManager = new SensorManager();
-const referee = new MoveReferee();
-const simulator = new Simulator();
-const gameManager = new GameManager(); // Keep it for referee mode
-const app = new App();
+// Init Global Objects (Attached to window for HTML access)
+window.sensorManager = new SensorManager();
+window.referee = new MoveReferee();
+window.simulator = new Simulator();
+window.gameManager = new GameManager();
+window.app = new App();
 
 // Hook Sensor Manager to App instead of Referee directly
 SensorManager.prototype.startListeners = function () {

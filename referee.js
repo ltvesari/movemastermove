@@ -49,9 +49,6 @@ class SensorManager {
         document.getElementById('sensor-status').innerText = "Durum: AKTİF";
         document.getElementById('sensor-status').style.color = "#00f3ff";
 
-        // Show Calibrate Button
-        document.getElementById('btn-calibrate').style.display = 'block';
-
         window.addEventListener('devicemotion', (event) => {
             this.handleMotion(event);
         });

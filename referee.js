@@ -114,14 +114,22 @@ class SensorManager {
         const force = Math.sqrt(this.accel.x ** 2 + this.accel.y ** 2 + this.accel.z ** 2);
         if (force > this.maxForce) this.maxForce = force;
 
-        this.updateUI();
-
-        // RECORDER HOOK
-        if (window.app && window.app.recorder && window.app.recorder.isRecording) {
-            window.app.recorder.capture(this.accel, this.gyro);
+        // SAFE UI UPDATE
+        try {
+            this.updateUI();
+        } catch (e) {
+            console.error("UI Error", e);
         }
 
-        referee.analyze(this.accel, this.gyro, force);
+        // SAFE RECORDER HOOK
+        if (window.app && window.app.recorder && window.app.recorder.isRecording) {
+            try { window.app.recorder.capture(this.accel, this.gyro); } catch (e) { console.error("Rec Error", e); }
+        }
+
+        // SAFE ANALYZE
+        try {
+            if (typeof referee !== 'undefined') referee.analyze(this.accel, this.gyro, force);
+        } catch (e) { console.error("Ref Error", e); }
     }
 
     handleOrientation(event) {
@@ -131,15 +139,25 @@ class SensorManager {
     }
 
     updateUI() {
-        if (!this.uiAccel) return;
         this.eventCount = (this.eventCount || 0) + 1;
-        if (this.eventCount % 10 === 0) { // Optimize: Only update DOM every 10 frames
-            this.uiAccel.innerText = `${this.accel.x.toFixed(1)}, ${this.accel.y.toFixed(1)}, ${this.accel.z.toFixed(1)}`;
-            this.uiGyro.innerText = `${this.gyro.alpha.toFixed(0)}, ${this.gyro.beta.toFixed(0)}, ${this.gyro.gamma.toFixed(0)}`;
-            document.getElementById('val-events').innerText = this.eventCount;
-        }
+
+        // DIRECT DOM UPDATE (No Optimization)
+        const elEvents = document.getElementById('val-events');
+        if (elEvents) elEvents.innerText = this.eventCount;
+
+        if (!this.uiAccel) return;
+        this.uiAccel.innerText = `${this.accel.x.toFixed(1)}, ${this.accel.y.toFixed(1)}, ${this.accel.z.toFixed(1)}`;
+        this.uiGyro.innerText = `${this.gyro.alpha.toFixed(0)}, ${this.gyro.beta.toFixed(0)}, ${this.gyro.gamma.toFixed(0)}`;
+        this.uiMax.innerText = this.maxForce.toFixed(1);
     }
 }
+
+// Global Error Handler
+window.onerror = function (msg, url, lineNo, columnNo, error) {
+    alert('Error: ' + msg + ' Line: ' + lineNo);
+    return false;
+};
+
 
 const MOVE_LIST = {
     // --- OFFENSIVE (Kılıç - Accel + Gyro) ---

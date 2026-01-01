@@ -271,16 +271,33 @@ class MoveReferee {
 
             // Force Score
             let forceScore = Math.min((maxForce / 30) * 100, 100);
-
-            // Accuracy: Sweep Magnitude
             let sweepScore = Math.min((Math.abs(deltaGamma) / 60) * 100, 100);
-
             let totalScore = Math.floor((forceScore * 0.4) + (sweepScore * 0.6));
+
             this.triggerMove(detectedId, totalScore);
         } else {
-            // Optional: Provide "Tip" feedback on screen if force was high enough but logic failed
-            if (maxForce > 20) {
-                // this.showFeedback(`AÇI YETERSİZ! (${deltaGamma.toFixed(0)}°)`);
+            // NO MATCH but High Force -> Provide meaningful feedback
+            if (maxForce > 15) {
+                // Analyze why it failed
+                let hint = "YANLIŞ HAREKET";
+
+                // Check if it was a flat swing (no rotation)
+                if (Math.abs(deltaGamma) < 20) hint = "BİLEĞİNİ ÇEVİR!";
+
+                // Check Direction for Vanguard (Target 1)
+                else if (this.targetMoveId === '1') {
+                    if (start.gamma < 0) hint = "SAĞDA BAŞLA!";
+                    else if (deltaGamma > 0) hint = "TERS YÖN!";
+                    else hint = "AÇI YETERSİZ!";
+                }
+                // Check Direction for Sinister (Target 2)
+                else if (this.targetMoveId === '2') {
+                    if (start.gamma > 0) hint = "SOLDA BAŞLA!";
+                    else if (deltaGamma < 0) hint = "TERS YÖN!";
+                    else hint = "AÇI YETERSİZ!";
+                }
+
+                this.triggerFail(hint);
             }
         }
     }
@@ -325,13 +342,10 @@ class MoveReferee {
         let finalMoveId = moveId;
 
         // --- COMBO / PATTERN LOGIC ---
-        // Sigil (41) Upgrade
         const now = Date.now();
         if (moveId === '2' && this.lastMoveId === '1' && (now - this.lastMoveTime < 1500)) {
-            finalMoveId = '41';
-            // Combo Score = Average of this stroke and previous stroke?
-            // For now just use current score
-            score += 10; // Combo Bonus
+            finalMoveId = '41'; // Sigil
+            score += 10;
             if (score > 100) score = 100;
         }
 
@@ -342,21 +356,35 @@ class MoveReferee {
         const finalName = MOVE_LIST[finalMoveId].name;
         console.log(`MOVE DETECTED: ${finalName} (Score: ${score}%)`);
 
-        // Visual Feedback
-        this.showFeedback(finalName);
+        // If in Free Mode using internal feedback
+        if (!this.onMoveDetected) {
+            this.showFeedback(finalName);
+        }
 
+        // Notify Game Logic
         if (this.onMoveDetected) this.onMoveDetected(finalMoveId, score);
     }
 
-    showFeedback(msg) {
+    triggerFail(reason) {
+        this.lastTriggerTime = Date.now(); // Put on cooldown to avoid spam
+        console.log(`MOVE FAILED: ${reason}`);
+
+        // Visual Feedback for failure
+        this.showFeedback(reason, '#ff0055');
+
+        if (this.onMoveFailed) this.onMoveFailed(reason);
+    }
+
+    showFeedback(msg, color = '#00f3ff') {
         this.feedbackUI.innerText = msg;
         this.feedbackUI.style.animation = 'none';
         this.feedbackUI.offsetHeight;
         this.feedbackUI.style.animation = 'pulse 0.2s';
-        this.feedbackUI.style.color = '#00f3ff';
+        this.feedbackUI.style.color = color;
     }
 }
 MoveReferee.prototype.setTargetCallback = function (cb) { this.onMoveDetected = cb; };
+MoveReferee.prototype.setFailureCallback = function (cb) { this.onMoveFailed = cb; };
 
 class GameManager {
     constructor() {
@@ -406,9 +434,18 @@ class GameManager {
 
                 setTimeout(() => this.nextRandomTurn(), 3000);
             } else {
-                referee.showFeedback("YANLIŞ!");
-                document.getElementById('feedback-message').style.color = '#ff0055';
+                referee.showFeedback("YANLIŞ HAREKET!", "#ff5500");
+                // The failure callback below handles detailed reasons usually, 
+                // but if a wrong move is FULLY detected, we land here.
             }
+        });
+
+        // Listen for "Near Misses" or "Failures"
+        referee.setFailureCallback((reason) => {
+            // Only show if we haven't already succeeded (handled by referee cooldown mostly, but safe to check)
+            // We rely on Referee's showFeedback which updates the UI directly.
+            // But we might want to play a sound or shake screen here?
+            console.log("Game Manager Report: Fail -> " + reason);
         });
     }
 

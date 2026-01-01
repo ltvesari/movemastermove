@@ -93,20 +93,11 @@ class SensorManager {
     handleMotion(event) {
         // Read raw
         const rawAcc = event.accelerationIncludingGravity || event.acceleration; // Use gravity context for orientation
-        // const rawAcc = event.acceleration; // Use pure acceleration for impact?
-        // Note: For sword swings, we often want 'acceleration' (linear) to detect force, 
-        // but 'accelerationIncludingGravity' helps with orientation (up/down).
-        // Let's store both if possible, or stick to one. 
-        // For MoveHero, 'acceleration' is better for "Slashing" (Force),
-        // 'accelerationIncludingGravity' (or gravity vector) is better for "Stance" (Holding steady).
 
-        // Let's use acceleration (linear) for force calculation
         let x = (event.acceleration ? event.acceleration.x : 0) || 0;
         let y = (event.acceleration ? event.acceleration.y : 0) || 0;
         let z = (event.acceleration ? event.acceleration.z : 0) || 0;
 
-        // If calibrating, store raw values of gravity context if we were using that, 
-        // but here we are calibrating 'noise' in linear acceleration (which should be 0 when still).
         if (this.isCalibrating) {
             this.calibrationBuffer.x.push(x);
             this.calibrationBuffer.y.push(y);
@@ -211,7 +202,8 @@ class MoveReferee {
         }
 
         // 2. OFFENSIVE (Triggered by Force)
-        const SWING_THRESHOLD = 15;
+        // ACCESSIBILITY UPDATE: Lowered from 15 to 8 to allow "Casual" swings
+        const SWING_THRESHOLD = 8;
         if (force > SWING_THRESHOLD) {
             this.classifyOffensive();
         }
@@ -244,37 +236,40 @@ class MoveReferee {
         let detectedId = null;
 
         // 1. VANGUARD (Left + Strong Force)
-        // Physics: Left Accel (Neg X) is primary.
-        // User said: "Sola ve Aşağı".
-        // If we trust the vector, Left is Neg X.
-        // If "Down" means vertical chop, Y axis also matters.
-        if (avgX < -2 && maxForce > 12) {
+        // ACCESSIBILITY RULES:
+        // Force > 8 (Easy to hit)
+        // X < -1 (Just need *some* Left vector)
+        if (avgX < -1 && maxForce > 8) {
             console.log("-> VECTOR MATCH: Vanguard (Left)");
             detectedId = '1';
         }
 
         // 2. SINISTER (Right + Strong Force)
-        else if (avgX > 2 && maxForce > 12) {
+        else if (avgX > 1 && maxForce > 8) {
             console.log("-> VECTOR MATCH: Sinister (Right)");
             detectedId = '2';
         }
 
         // 3. HEARTSEEKER (Thrust)
-        else if (maxForce > 15 && Math.abs(avgX) < 2) {
+        else if (maxForce > 10 && Math.abs(avgX) < 1.5) {
             detectedId = '5';
         }
 
         // --- SCORING & FEEDBACK ---
         if (detectedId) {
             // Force Score
-            let forceScore = Math.min((maxForce / 35) * 100, 100);
-            this.triggerMove(detectedId, Math.floor(forceScore));
+            // 8 -> 50%
+            // 20+ -> 100%
+            let intensityScore = Math.min(((maxForce - 8) / 12) * 50, 50); // 0-50 pts based on force above 8
+            let totalScore = Math.floor(50 + intensityScore); // Base 50 for succeeding
+
+            this.triggerMove(detectedId, totalScore);
         } else {
-            // Logic failed but force was high?
-            if (maxForce > 15) {
+            // Logic failed but force was reasonably high?
+            if (maxForce > 10) {
                 let hint = "NET BİR YÖN BELİRLE!";
 
-                if (Math.abs(avgX) < 2) hint = "SAVURMA YÖNÜ BELİRSİZ";
+                if (Math.abs(avgX) < 1) hint = "DAHA GENİŞ SAVUR";
                 else if (this.targetMoveId === '1' && avgX > 0) hint = "SOLA VUR!";
                 else if (this.targetMoveId === '2' && avgX < 0) hint = "SAĞA VUR!";
 

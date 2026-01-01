@@ -220,84 +220,67 @@ class MoveReferee {
     classifyOffensive() {
         if (this.history.length < 10) return;
 
-        // Get Delta Orientation
+        // --- DATA DRIVEN ANALYSIS (Based on User Recording) ---
+        // Vanguard Signature seen in record:
+        // 1. High Accel Y (Centrifugal force): > 30
+        // 2. Negative Accel X (Right to Left): Avg X < -5
+        // 3. Gamma Drop (Roll Left): Delta Gamma < -40
+
+        // Get Stats
         const start = this.history[0].g;
         const end = this.history[this.history.length - 1].g;
+        const deltaGamma = end.gamma - start.gamma;
+        const deltaBeta = end.beta - start.beta;
 
-        const deltaGamma = end.gamma - start.gamma; // Roll (Left/Right tilt)
-        const deltaBeta = end.beta - start.beta;    // Pitch (Up/Down tilt)
+        let maxX = 0, maxY = 0;
+        let avgX = 0;
 
-        // Calculate maximum linear acceleration on axes
-        let maxX = 0, maxY = 0, maxZ = 0;
+        let sumX = 0;
         this.history.forEach(h => {
-            if (Math.abs(h.a.x) > maxX) maxX = Math.abs(h.a.x);
-            if (Math.abs(h.a.y) > maxY) maxY = Math.abs(h.a.y);
-            if (Math.abs(h.a.z) > maxZ) maxZ = Math.abs(h.a.z);
+            if (Math.abs(h.a.x) > Math.abs(maxX)) maxX = h.a.x;
+            if (Math.abs(h.a.y) > Math.abs(maxY)) maxY = h.a.y;
+            sumX += h.a.x;
         });
+        avgX = sumX / this.history.length;
 
-        // --- HEURISTICS ---
+        console.log(`ANALYSIS: dGamma:${deltaGamma.toFixed(0)}, AvgX:${avgX.toFixed(1)}, MaxY:${maxY.toFixed(1)}`);
+
         let detectedId = null;
 
-        // 1. HORIZONTAL SLASHES (Dominant Gamma Change, minimal Beta)
-        if (Math.abs(deltaGamma) > 30 && Math.abs(deltaBeta) < 20) {
-            // Left to Right (Gamma Increasing)
-            if (deltaGamma > 30) detectedId = '9'; // Blade Hurricane
-            // Right to Left (Gamma Decreasing)
-            else if (deltaGamma < -30) detectedId = '8'; // Horizon Sweeper
+        // 1. VANGUARD'S CLEAVE (Right-Up -> Left-Down)
+        // User Data: X goes to -40, Gamma drops by 60+.
+        if (deltaGamma < -35 && avgX < -2) {
+            console.log("-> Potential Vanguard Identified");
+            detectedId = '1';
         }
 
-        // 2. DIAGONAL SLASHES (Both Gamma and Beta change)
-        else if (Math.abs(deltaGamma) > 20 && Math.abs(deltaBeta) > 15) {
-            // Unify logic: 
-            // Vanguard: Right-Up to Left-Down. Gamma decreases, Beta decreases (phone dips)? 
-            // Let's assume standard "Phone is Sword" grip.
-
-            if (deltaGamma < -20) {
-                // Moving Left
-                if (deltaBeta < 0) detectedId = '1'; // Down-Left (Vanguard)
-                else detectedId = '3'; // Up-Left (Rising Dragon)
-            } else {
-                // Moving Right
-                if (deltaBeta < 0) detectedId = '2'; // Down-Right (Sinister)
-                else detectedId = '4'; // Up-Right (Gale Upper)
-            }
+        // 2. SINISTER SLASH (Left-Up -> Right-Down)
+        // Opposite of Vanguard
+        else if (deltaGamma > 35 && avgX > 2) {
+            detectedId = '2';
         }
 
-        // 3. VERTICAL SLASHES (Dominant Beta Change or High Y/Z Accel with no Rotation)
-        else if (Math.abs(deltaBeta) > 30 && Math.abs(deltaGamma) < 20) {
-            if (deltaBeta < -30) detectedId = '6'; // Executioner (Down)
-            // Upward vertical is rare, maybe lift?
+        // 3. HEARTSEEKER (Thrust)
+        // High Y-Accel, Low Rotation, Stable X
+        else if (maxY > 15 && Math.abs(deltaGamma) < 25 && Math.abs(avgX) < 10) {
+            detectedId = '5';
         }
 
-        // 4. THRUST (Dominant Y-Accel, Low Rotation)
-        else if (maxY > 10 && Math.abs(deltaGamma) < 15 && Math.abs(deltaBeta) < 15) {
-            detectedId = '5'; // Heartseeker
+        // 4. VERTICAL / HORIZONTAL (Secondary Checks)
+        else if (Math.abs(deltaGamma) > 30) {
+            // Horizontal Swipe without strong X accel?
+            if (deltaGamma < 0) detectedId = '8'; // Horizon Left
+            else detectedId = '9'; // Blade Right
+        }
+        else if (Math.abs(deltaBeta) > 40) {
+            // Vertical Drop
+            detectedId = '6'; // Executioner
         }
 
-        // 5. EARTHSHAKER (Special Case: Drop)
-        // Check for "Freefall" (close to 0G) followed by spike?
-        // Or just strong downward Beta/Z?
-        // Let's map it to Executioner for now if it's strong down, or separte if we detect Squat.
-
-        // --- FALLBACK / OVERRIDE ---
-        // If unspecified but high force, default to closest simple slash
-
-        // --- SCORING LOGIC ---
-        // Calculate score based on how "strong" and "clear" the move was.
-        // Base Score: 50
-        // + Force Bonus (up to 25)
-        // + Angle Accuracy (up to 25)
-
+        // --- SCORING ---
         let score = 0;
-
-        // 1. Force Score (Max 25 pts for force > 25m/s2)
-        // Threshold was 15.
-        // If MaxForce is 25 => 100% force score.
         let maxForce = 0;
         this.history.forEach(h => { if (h.f > maxForce) maxForce = h.f; });
-
-        let forceScore = Math.min((maxForce / 25) * 100, 100);
-
         // 2. Angle Match Score
         // If we detected a move, it means we passed the threshold.
         // But how "deep" was the cut?

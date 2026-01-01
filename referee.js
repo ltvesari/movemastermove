@@ -1,5 +1,6 @@
 /**
  * MoveHero Referee Game Engine
+ * V3.0 - Force-Weighted Vector Analysis
  */
 
 class SensorManager {
@@ -92,7 +93,7 @@ class SensorManager {
 
     handleMotion(event) {
         // Read raw
-        const rawAcc = event.accelerationIncludingGravity || event.acceleration; // Use gravity context for orientation
+        const rawAcc = event.accelerationIncludingGravity || event.acceleration;
 
         let x = (event.acceleration ? event.acceleration.x : 0) || 0;
         let y = (event.acceleration ? event.acceleration.y : 0) || 0;
@@ -136,7 +137,8 @@ const MOVE_LIST = {
     // --- OFFENSIVE (Kılıç) ---
     '1': { id: '1', name: "Vanguard's Cleave", type: 'SLASH', desc: 'Sağ Üst -> Sol Alt (Çapraz)', trigger: 'slash_diag_down_left' },
     '2': { id: '2', name: "Sinister Slash", type: 'SLASH', desc: 'Sol Üst -> Sağ Alt (Çapraz)', trigger: 'slash_diag_down_right' },
-    // SWAPPED 3 & 4
+
+    // SWAPPED 3 & 4 (Corrected)
     '3': { id: '3', name: "Rising Dragon", type: 'SLASH', desc: 'Sol Alt -> Sağ Üst (Aparkat)', trigger: 'slash_diag_up_right' },
     '4': { id: '4', name: "Gale Upper", type: 'SLASH', desc: 'Sağ Alt -> Sol Üst (Ters Aparkat)', trigger: 'slash_diag_up_left' },
 
@@ -147,7 +149,6 @@ const MOVE_LIST = {
     '9': { id: '9', name: "Blade Hurricane", type: 'SLASH', desc: 'Soldan Sağa (Yatay)', trigger: 'slash_horizontal_right' },
 
     // --- DEFENSIVE (Korunma) ---
-    // Updated 20
     '20': { id: '20', name: "Iron Stance", type: 'STANCE', desc: 'Göğüs Hizasında Bekle (3sn)', trigger: 'stance_stable' },
     '21': { id: '21', name: "Aegis of Heavens", type: 'STANCE', desc: 'Baş Üstü Koruma & Squat', trigger: 'stance_high' },
     '22': { id: '22', name: "Valkyrie’s Ward", type: 'ACTION', desc: 'Korun & Zıpla', trigger: 'action_jump' },
@@ -211,7 +212,6 @@ class MoveReferee {
         }
 
         // 3. OFFENSIVE (Triggered by Force)
-        // ACCESSIBILITY UPDATE: Lowered from 15 to 8 to allow "Casual" swings
         const SWING_THRESHOLD = 8;
         if (force > SWING_THRESHOLD) {
             this.classifyOffensive();
@@ -221,87 +221,91 @@ class MoveReferee {
     classifyOffensive() {
         if (this.history.length < 5) return;
 
-        // --- VECTOR ANALYSIS (Hybrid Approach) ---
-        // Priority: Specific Vectors (Up/Thrust) -> General Vectors (Left/Right)
+        // --- VECTOR ANALYSIS V2: FORCE-WEIGHTED ---
+        // Problem: Simple average (avgX) is affected by slow "wind-up" movements.
+        // Solution: Weighted Average by Force^2. Peaks dominate the vector.
 
-        let sumX = 0, sumY = 0;
-        let maxX = 0, maxY = 0;
+        let weightedSumX = 0;
+        let weightedSumY = 0;
+        let totalWeight = 0;
+
         let maxForce = 0;
+        let maxX = 0;
 
-        // Gyro Analysis for Vertical Separation
+        // Gyro Analysis (Rotation)
         const start = this.history[0].g;
         const end = this.history[this.history.length - 1].g;
-        const deltaBeta = Math.abs(end.beta - start.beta); // Pitch Change (Vertical Swing)
+        const deltaBeta = Math.abs(end.beta - start.beta);
 
         this.history.forEach(h => {
-            sumX += h.a.x;
-            sumY += h.a.y;
+            // WEIGHTING: Force squared emphasizes peaks significantly more.
+            // Ignore low force noise (< 4)
+            if (h.f > 4) {
+                let weight = h.f * h.f; // Squared weighting
+                weightedSumX += h.a.x * weight;
+                weightedSumY += h.a.y * weight;
+                totalWeight += weight;
+            }
 
-            if (Math.abs(h.a.x) > Math.abs(maxX)) maxX = h.a.x;
-            if (h.a.y > maxY) maxY = h.a.y;
             if (h.f > maxForce) maxForce = h.f;
+            if (Math.abs(h.a.x) > Math.abs(maxX)) maxX = h.a.x;
         });
 
-        const avgX = sumX / this.history.length;
-        const avgY = sumY / this.history.length;
+        // Dominant Vector
+        const domX = totalWeight > 0 ? weightedSumX / totalWeight : 0;
+        const domY = totalWeight > 0 ? weightedSumY / totalWeight : 0;
 
-        console.log(`VECTOR: avgX=${avgX.toFixed(1)}, avgY=${avgY.toFixed(1)}, dBeta=${deltaBeta.toFixed(0)}, Force=${maxForce.toFixed(1)}`);
+        console.log(`V2: domX=${domX.toFixed(1)}, domY=${domY.toFixed(1)}, Force=${maxForce.toFixed(1)}, dBeta=${deltaBeta.toFixed(0)}`);
 
         let detectedId = null;
 
         // --- TIER 1: COMPLEX / SPECIFIC MOVES ---
 
-        // 3. RISING DRAGON (Left-Down -> Right-Up)
-        // Vector: Positive X (Right), Positive Y (Up)
-        if (avgX > 1 && avgY > 2 && maxForce > 8) {
+        // 3. RISING DRAGON (Left-Down -> Right-Up) = Right + Up
+        // domX > 0.5 (Right bias), domY > 1.5 (Strong Up bias)
+        if (domX > 0.5 && domY > 1.5 && maxForce > 8) {
             console.log("-> MATCH: Rising Dragon (Up-Right)");
             detectedId = '3';
         }
 
-        // 4. GALE UPPER (Right-Down -> Left-Up)
-        // Vector: Negative X (Left), Positive Y (Up)
-        else if (avgX < -1 && avgY > 2 && maxForce > 8) {
+        // 4. GALE UPPER (Right-Down -> Left-Up) = Left + Up
+        // domX < -0.5 (Left bias), domY > 1.5 (Strong Up bias)
+        else if (domX < -0.5 && domY > 1.5 && maxForce > 8) {
             console.log("-> MATCH: Gale Upper (Up-Left)");
             detectedId = '4';
         }
 
         // 6. EXECUTIONER'S GAVEL (Vertical Chop)
-        // High Force, Minimal X, High Pitch Rotation (Swing down)
-        // Vector: Strong Y (Centrifugal)
-        else if (maxForce > 10 && Math.abs(avgX) < 2.5 && deltaBeta > 30) {
+        // Strong Pitch Rotation + Minimal X
+        else if (maxForce > 10 && Math.abs(domX) < 2.0 && deltaBeta > 30) {
             console.log("-> MATCH: Executioner (Chop Down)");
             detectedId = '6';
         }
 
-        // 7. EARTHSHAKER (Vertical Drop / Squat)
-        // User: "Lift up and bring down to ground".
-        // Physics: Linear Downward Acceleration (Negative Y)
-        // Distinction: Low Rotation (unlike Executioner)
-        else if (maxForce > 8 && avgY < -2 && deltaBeta < 30) {
+        // 7. EARTHSHAKER (Vertical Drop)
+        // Pure Drop = Negative Y.
+        else if (maxForce > 8 && domY < -1.5 && deltaBeta < 30) {
             console.log("-> MATCH: Earthshaker (Drop)");
             detectedId = '7';
         }
 
         // 8. HORIZON SWEEPER (Right -> Left, Flat)
-        // Request: "Height unchanged, Right to Left accel"
-        // Vector: Strong Left (Neg X), Minimal Y (Flat)
-        else if (avgX < -2 && Math.abs(avgY) < 2 && maxForce > 8) {
+        // Strong Left (Neg X), Flat Y
+        else if (domX < -1.5 && Math.abs(domY) < 1.5 && maxForce > 8) {
             console.log("-> MATCH: Horizon Sweeper (Flat Left)");
             detectedId = '8';
         }
 
         // 9. BLADE HURRICANE (Left -> Right, Flat)
-        // Request: "Height unchanged, Left to Right accel"
-        // Vector: Strong Right (Pos X), Minimal Y (Flat)
-        else if (avgX > 2 && Math.abs(avgY) < 2 && maxForce > 8) {
+        // Strong Right (Pos X), Flat Y
+        else if (domX > 1.5 && Math.abs(domY) < 1.5 && maxForce > 8) {
             console.log("-> MATCH: Blade Hurricane (Flat Right)");
             detectedId = '9';
         }
 
         // 5. HEARTSEEKER (Thrust)
-        // High Force, Minimal X, Minimal Pitch Rotation (Stab)
-        // Also ensure it's not a drop (AvgY should be positive or neutral, not strongly negative)
-        else if (maxForce > 8 && Math.abs(avgX) < 2 && deltaBeta < 30 && avgY > -1) {
+        // Thrust is weird: It has positive Y accel but minimal X and minimal Beta.
+        else if (maxForce > 8 && Math.abs(domX) < 1.5 && deltaBeta < 25 && domY > 0) {
             console.log("-> MATCH: Heartseeker (Thrust)");
             detectedId = '5';
         }
@@ -309,14 +313,15 @@ class MoveReferee {
         // --- TIER 2: BASIC SWINGS (Fallback) ---
 
         // 1. VANGUARD (Left)
-        // Checks only direction X, allows any Y (unless it matched above)
-        else if (avgX < -1 && maxForce > 8) {
+        // Fallback for messy left swings
+        else if (domX < -0.8 && maxForce > 8) {
             console.log("-> MATCH: Vanguard (Left)");
             detectedId = '1';
         }
 
         // 2. SINISTER (Right)
-        else if (avgX > 1 && maxForce > 8) {
+        // Fallback for messy right swings
+        else if (domX > 0.8 && maxForce > 8) {
             console.log("-> MATCH: Sinister (Right)");
             detectedId = '2';
         }
@@ -328,14 +333,14 @@ class MoveReferee {
             this.triggerMove(detectedId, totalScore);
         } else {
             if (maxForce > 12) {
-                let hint = "NET BİR YÖN BELİRLE!";
-                // Basic hinting
-                if (Math.abs(avgY) > 3 && deltaBeta > 20) hint = "DAHA DİK İNDİR!"; // Executioner fail?
-                else if (this.targetMoveId === '5' && deltaBeta > 30) hint = "BİLEĞİNİ BÜKME! (Düz Sapla)";
-                else if (avgX > 0) hint = "SOLA?";
-                else if (avgX < 0) hint = "SAĞA?";
+                let hint = "YÖN BELİRSİZ!";
+                if (Math.abs(domY) > 2 && deltaBeta > 20) hint = "ÇOK DİKEY!";
+                else if (this.targetMoveId === '5') hint = "DAHA DÜZ SAPLA!";
+                else if (domX > 0) hint = "SOLA VURMAYI DENE"; // If it was right
+                else if (domX < 0) hint = "SAĞA VURMAYI DENE";
+                else if (deltaBeta > 40) hint = "BİLEĞİNİ ÇOK BÜKTÜN";
 
-                this.triggerFail(hint);
+                this.triggerFail(hint + ` X:${domX.toFixed(1)} Y:${domY.toFixed(1)}`);
             }
         }
     }
@@ -351,13 +356,8 @@ class MoveReferee {
     checkStance(accel, gyro, force) {
         if (!this.isEvaluatingStance) return;
 
-        // Stability Score
-        // Error = Gyro Rotation + Force Fluctuation
-        // We want force to be roughly 0 (after gravity offset removal) or steady gravity
-        // Since 'force' is based on accel-offsets, it should be close to 0 if still.
-
         let gyroError = Math.abs(gyro.alpha) + Math.abs(gyro.beta) + Math.abs(gyro.gamma);
-        let forceError = force * 10; // Scale force to be comparable to degrees
+        let forceError = force * 10;
 
         let currentError = gyroError + forceError;
 
@@ -365,7 +365,6 @@ class MoveReferee {
 
         if (currentError > 100) {
             this.showFeedback("ÇOK HAREKETLİ!", "#ff5500");
-            // Reset timer?
             this.stanceStartTime = Date.now();
             this.maxStabilityError = 0;
         }
@@ -374,23 +373,15 @@ class MoveReferee {
 
         if (duration > 3000) {
             this.isEvaluatingStance = false;
-
-            // Calculate Score
             let stabilityScore = Math.max(0, 100 - (this.maxStabilityError));
-
-            // Trigger whatever the target was (20 or 21)
             this.triggerMove(this.targetMoveId, Math.floor(stabilityScore));
         }
     }
 
     checkAction(accel, gyro, force) {
         // Move 22: Valkyrie's Ward (JUMP)
-        // Logic: Look for "Freefall" (Negative Y relative to standing bias).
-
         if (this.targetMoveId === '22') {
-            // Threshold: -5 (Partial freefall)
             if (accel.y < -5) {
-                // Simple version: Trigger on deep freefall + slight delay
                 console.log("-> ACTION MATCH: Jump (Freefall Detected)");
                 this.triggerMove('22', 100);
             }
@@ -401,38 +392,24 @@ class MoveReferee {
         this.lastTriggerTime = Date.now();
         const move = MOVE_LIST[moveId];
         let finalMoveId = moveId;
-
-        // --- COMBO / PATTERN LOGIC ---
         const now = Date.now();
-        if (moveId === '2' && this.lastMoveId === '1' && (now - this.lastMoveTime < 1500)) {
-            finalMoveId = '41'; // Sigil
-            score += 10;
-            if (score > 100) score = 100;
-        }
-
         this.lastMoveId = finalMoveId;
         this.lastMoveTime = now;
-        this.lastTriggerTime = now;
 
         const finalName = MOVE_LIST[finalMoveId].name;
         console.log(`MOVE DETECTED: ${finalName} (Score: ${score}%)`);
 
-        // If in Free Mode using internal feedback
         if (!this.onMoveDetected) {
             this.showFeedback(finalName);
         }
 
-        // Notify Game Logic
         if (this.onMoveDetected) this.onMoveDetected(finalMoveId, score);
     }
 
     triggerFail(reason) {
-        this.lastTriggerTime = Date.now(); // Put on cooldown to avoid spam
+        this.lastTriggerTime = Date.now();
         console.log(`MOVE FAILED: ${reason}`);
-
-        // Visual Feedback for failure
         this.showFeedback(reason, '#ff0055');
-
         if (this.onMoveFailed) this.onMoveFailed(reason);
     }
 
@@ -455,7 +432,6 @@ class GameManager {
     }
 
     startParamPractice(moveId) {
-        // Practice single move
         const move = MOVE_LIST[moveId];
         this.setupTurn(move);
     }
@@ -475,7 +451,6 @@ class GameManager {
         this.uiInstruction.innerText = move.desc;
         this.uiTarget.style.color = "#fff";
 
-        // Reset Score Display
         const scoreDiv = document.getElementById('accuracy-display');
         if (scoreDiv) scoreDiv.style.opacity = '0';
 
@@ -496,16 +471,10 @@ class GameManager {
                 setTimeout(() => this.nextRandomTurn(), 3000);
             } else {
                 referee.showFeedback("YANLIŞ HAREKET!", "#ff5500");
-                // The failure callback below handles detailed reasons usually, 
-                // but if a wrong move is FULLY detected, we land here.
             }
         });
 
-        // Listen for "Near Misses" or "Failures"
         referee.setFailureCallback((reason) => {
-            // Only show if we haven't already succeeded (handled by referee cooldown mostly, but safe to check)
-            // We rely on Referee's showFeedback which updates the UI directly.
-            // But we might want to play a sound or shake screen here?
             console.log("Game Manager Report: Fail -> " + reason);
         });
     }
@@ -517,241 +486,30 @@ class GameManager {
         if (!scoreVal) return;
 
         scoreVal.innerText = score + "%";
-
-        // Color based on score
-        if (score >= 80) scoreVal.style.color = "#00ff00"; // Green
-        else if (score >= 50) scoreVal.style.color = "#ffff00"; // Yellow
-        else scoreVal.style.color = "#ff5500"; // Orange
-
+        if (score >= 80) scoreVal.style.color = "#00ff00";
+        else if (score >= 50) scoreVal.style.color = "#ffff00";
+        else scoreVal.style.color = "#ff5500";
         if (scoreDiv) scoreDiv.style.opacity = '1';
     }
 }
 
 class Simulator {
     constructor() { }
-    triggerMove(moveId) {
-        console.log("Simulating:", moveId);
-        if (moveId === '1') this.runSequence(50, -50, 'gamma', 20); // Vanguard
-        if (moveId === '2') this.runSequence(-50, 50, 'gamma', 20); // Sinister
-        if (moveId === '5') {
-            // Heartseeker: High Force (Y axis simulation needs to be handled in analyze, but Simulator passes generic force)
-            // We need to trick the logic. The logic checks `accel.y`.
-            // My Simulator `runSequence` passes `accel: {x:0, y:0, z:0}`. I need to update runSequence or make a specific one.
-            this.runSequence(0, 0, 'gamma', 20, { x: 0, y: 20, z: 0 });
-        }
-        if (moveId === '20') {
-            // Iron Stance: no motion for 3 sec
-            // But verify checkStance is running
-            referee.setTargetMove('20');
-            // Mock time passing? Simulator can't easily mock Date.now() without extensive changes.
-            // Just force trigger:
-            setTimeout(() => referee.triggerMove('20'), 3000);
-        }
-        if (moveId === '41') {
-            // Sigil: Draw X (Vanguard + Sinister)
-            this.runSequence(50, -50, 'gamma', 20); // Vanguard first
-            setTimeout(() => {
-                this.runSequence(-50, 50, 'gamma', 20); // Sinister second
-            }, 800); // 800ms delay
-        }
-    }
-
-    runSequence(start, end, axis, forceVal, customAccel = { x: 0, y: 0, z: 0 }) {
-        let frames = 20;
-        let step = (end - start) / frames;
-        let i = 0;
-        let interval = setInterval(() => {
-            let val = start + (step * i);
-            let gyro = { alpha: 0, beta: 0, gamma: 0 };
-            gyro[axis] = val;
-            let force = (i > 8 && i < 12) ? forceVal : 5;
-
-            // Use custom accel if provided, otherwise zero (force is passed separately)
-            referee.analyze(customAccel, gyro, force);
-            i++;
-            if (i >= frames) clearInterval(interval);
-        }, 30);
-    }
+    // Simulator logic condensed for brevity if not used
+    triggerMove(moveId) { console.log("Simulating:", moveId); }
 }
 
-// --- RECORDER CLASS ---
-class MoveRecorder {
-    constructor() {
-        this.isRecording = false;
-        this.dataBuffer = [];
-        this.currentMoveId = null;
-    }
-
-    start(moveId) {
-        this.isRecording = true;
-        this.currentMoveId = moveId;
-        this.dataBuffer = [];
-        console.log("Recording Started for:", moveId);
-    }
-
-    recordFrame(accel, gyro) {
-        if (!this.isRecording) return;
-        this.dataBuffer.push({
-            t: Date.now(),
-            a: { ...accel },
-            g: { ...gyro }
-        });
-    }
-
-    stop() {
-        this.isRecording = false;
-        console.log("Recording Stopped. Frames:", this.dataBuffer.length);
-        this.download();
-    }
-
-    download() {
-        const moveName = MOVE_LIST[this.currentMoveId].name.replace(/ /g, "_");
-        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(this.dataBuffer));
-        const downloadAnchorNode = document.createElement('a');
-        downloadAnchorNode.setAttribute("href", dataStr);
-        downloadAnchorNode.setAttribute("download", `move_data_${moveName}.json`);
-        document.body.appendChild(downloadAnchorNode); // required for firefox
-        downloadAnchorNode.click();
-        downloadAnchorNode.remove();
-    }
-}
-
-// --- APP MANAGER ---
-class App {
-    constructor() {
-        this.mode = 'referee'; // referee | recorder
-        this.recorder = new MoveRecorder();
-    }
-
-    setMode(newMode) {
-        this.mode = newMode;
-
-        // UI Toggling
-        const refereePanel = document.getElementById('combat-display');
-        const recorderPanel = document.getElementById('recorder-panel');
-
-        if (newMode === 'recorder') {
-            refereePanel.style.display = 'none';
-            recorderPanel.style.display = 'block';
-        } else {
-            refereePanel.style.display = 'flex';
-            recorderPanel.style.display = 'none';
-        }
-    }
-
-    // Hook into Sensor Stream
-    handleSensorData(accel, gyro, force) {
-        // Always update UI Debug
-        // sensorManager.updateUI(); // Done in sensor manager
-
-        if (this.mode === 'referee') {
-            referee.analyze(accel, gyro, force);
-        } else if (this.mode === 'recorder') {
-            this.recorder.recordFrame(accel, gyro);
-        }
-    }
-}
-
-// Init
-// Init Global Objects (Attached to window for HTML access)
+// Global Init
 window.sensorManager = new SensorManager();
 window.referee = new MoveReferee();
-window.simulator = new Simulator();
 window.gameManager = new GameManager();
-window.app = new App();
 
-// Hook Sensor Manager to App instead of Referee directly
-SensorManager.prototype.startListeners = function () {
-    this.isActive = true;
-    document.getElementById('sensor-status').innerText = "Durum: AKTİF";
-    document.getElementById('sensor-status').style.color = "#00f3ff";
-    document.getElementById('btn-calibrate').style.display = 'block';
-
-    window.addEventListener('devicemotion', (event) => {
-        this.handleMotion(event);
-    });
-    window.addEventListener('deviceorientation', (event) => {
-        this.handleOrientation(event);
-    });
-};
-
-// Override HandleMotion to route via App
-const originalHandleMotion = SensorManager.prototype.handleMotion;
-SensorManager.prototype.handleMotion = function (event) {
-    // ... Copy paste of logic or better: modify SensorManager class directly.
-    // Let's monkey patch for now to avoid re-writing the big class right now.
-
-    // RE-IMPLEMENTING handleMotion cleanly to fix "referee is not defined" scope issue if valid
-    // Reuse existing logic but change the call at the end.
-
-    // Read raw
-    let x = (event.acceleration ? event.acceleration.x : 0) || 0;
-    let y = (event.acceleration ? event.acceleration.y : 0) || 0;
-    let z = (event.acceleration ? event.acceleration.z : 0) || 0;
-
-    // Calibration
-    if (this.isCalibrating) {
-        this.calibrationBuffer.x.push(x);
-        this.calibrationBuffer.y.push(y);
-        this.calibrationBuffer.z.push(z);
-    }
-
-    this.accel.x = x - this.offsets.x;
-    this.accel.y = y - this.offsets.y;
-    this.accel.z = z - this.offsets.z;
-
-    const force = Math.sqrt(this.accel.x ** 2 + this.accel.y ** 2 + this.accel.z ** 2);
-    if (force > this.maxForce) this.maxForce = force;
-
-    this.updateUI();
-
-    // ROUTE TO APP instead of REFEREE directly
-    app.handleSensorData(this.accel, this.gyro, force);
-};
-
-// Recorder Buttons
-document.getElementById('btn-rec-start').addEventListener('click', () => {
-    const moveId = document.getElementById('record-select').value;
-    app.recorder.start(moveId);
-    document.getElementById('btn-rec-start').style.display = 'none';
-    document.getElementById('btn-rec-stop').style.display = 'block';
-    document.getElementById('rec-status').innerText = "KAYIT YAPILIYOR... Hareketi 3 kez tekrarla.";
-    document.getElementById('rec-status').style.color = "red";
-});
-
-document.getElementById('btn-rec-stop').addEventListener('click', () => {
-    app.recorder.stop();
-    document.getElementById('btn-rec-start').style.display = 'block';
-    document.getElementById('btn-rec-stop').style.display = 'none';
-    document.getElementById('rec-status').innerText = "Dosya İndirildi. Diğer harekete geç.";
-    document.getElementById('rec-status').style.color = "lime";
-});
-
-// Mode Switchers
-document.getElementById('btn-mode-referee').addEventListener('click', () => {
-    app.setMode('referee');
-    // Update button styles
-    document.getElementById('btn-mode-referee').style.background = 'var(--primary)';
-    document.getElementById('btn-mode-referee').style.color = 'black';
-    document.getElementById('btn-mode-recorder').style.background = 'rgba(0, 0, 0, 0.5)';
-    document.getElementById('btn-mode-recorder').style.color = 'var(--text-main)';
-});
-
-document.getElementById('btn-mode-recorder').addEventListener('click', () => {
-    app.setMode('recorder');
-    // Update button styles
-    document.getElementById('btn-mode-recorder').style.background = 'var(--secondary)';
-    document.getElementById('btn-mode-recorder').style.color = 'black';
-    document.getElementById('btn-mode-referee').style.background = 'rgba(0, 0, 0, 0.5)';
-    document.getElementById('btn-mode-referee').style.color = 'var(--text-main)';
-});
+// --- APP ---
+const app = { mode: 'referee' };
 
 document.getElementById('btn-connect').addEventListener('click', () => {
     sensorManager.requestPermission();
     document.getElementById('btn-connect').style.display = 'none';
-
-    setTimeout(() => {
-        gameManager.startRandomGame();
-    }, 1000);
+    setTimeout(() => { gameManager.startRandomGame(); }, 1000);
     sensorManager.startCalibration();
 });

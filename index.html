@@ -26,6 +26,39 @@
             <div id="sensor-status" class="status-indicator">Durum: Bekleniyor...</div>
         </section>
 
+        <!-- Mode Switcher -->
+        <div style="display:flex; gap:10px;">
+            <button class="sim-btn" onclick="app.setMode('referee')"
+                style="background:var(--primary); color:black;">HAKEM MODU</button>
+            <button class="sim-btn" onclick="app.setMode('recorder')">KAYIT MODU</button>
+        </div>
+
+        <!-- Recorder UI (Hidden by default) -->
+        <section id="recorder-panel" style="display:none; background:#222; padding:15px; border:1px solid #555;">
+            <h3 style="color:orange; text-align:center;">HAREKET KAYDEDİCİ</h3>
+            <p style="font-size:0.8rem; color:#aaa; text-align:center; margin-bottom:10px;">
+                Hareketi seç, "Kayıt"a bas, hareketi 3 kere yap, "Bitir"e bas.
+            </p>
+
+            <select id="record-select" class="cyber-select">
+                <option value="1">Vanguard's Cleave</option>
+                <option value="2">Sinister Slash</option>
+                <option value="3">Rising Dragon</option>
+                <option value="4">Gale Upper</option>
+                <option value="5">Heartseeker</option>
+                <option value="20">Iron Stance</option>
+                <option value="41">Sigil Pattern</option>
+            </select>
+
+            <div style="display:flex; gap:10px; margin-top:20px;">
+                <button id="btn-rec-start" class="cyber-button" style="border-color:orange; color:orange;">KAYIT
+                    BAŞLAT</button>
+                <button id="btn-rec-stop" class="cyber-button" style="border-color:red; color:red; display:none;">BİTİR
+                    & İNDİR</button>
+            </div>
+            <div id="rec-status" style="text-align:center; color:white; margin-top:10px;">Hazır</div>
+        </section>
+
         <!-- Main Display -->
         <section id="combat-display">
             <!-- Training Mode Selector -->

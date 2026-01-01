@@ -511,22 +511,164 @@ class Simulator {
     }
 }
 
+// --- RECORDER CLASS ---
+class MoveRecorder {
+    constructor() {
+        this.isRecording = false;
+        this.dataBuffer = [];
+        this.currentMoveId = null;
+    }
+
+    start(moveId) {
+        this.isRecording = true;
+        this.currentMoveId = moveId;
+        this.dataBuffer = [];
+        console.log("Recording Started for:", moveId);
+    }
+
+    recordFrame(accel, gyro) {
+        if (!this.isRecording) return;
+        this.dataBuffer.push({
+            t: Date.now(),
+            a: { ...accel },
+            g: { ...gyro }
+        });
+    }
+
+    stop() {
+        this.isRecording = false;
+        console.log("Recording Stopped. Frames:", this.dataBuffer.length);
+        this.download();
+    }
+
+    download() {
+        const moveName = MOVE_LIST[this.currentMoveId].name.replace(/ /g, "_");
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(this.dataBuffer));
+        const downloadAnchorNode = document.createElement('a');
+        downloadAnchorNode.setAttribute("href", dataStr);
+        downloadAnchorNode.setAttribute("download", `move_data_${moveName}.json`);
+        document.body.appendChild(downloadAnchorNode); // required for firefox
+        downloadAnchorNode.click();
+        downloadAnchorNode.remove();
+    }
+}
+
+// --- APP MANAGER ---
+class App {
+    constructor() {
+        this.mode = 'referee'; // referee | recorder
+        this.recorder = new MoveRecorder();
+    }
+
+    setMode(newMode) {
+        this.mode = newMode;
+
+        // UI Toggling
+        const refereePanel = document.getElementById('combat-display');
+        const recorderPanel = document.getElementById('recorder-panel');
+
+        if (newMode === 'recorder') {
+            refereePanel.style.display = 'none';
+            recorderPanel.style.display = 'block';
+        } else {
+            refereePanel.style.display = 'flex';
+            recorderPanel.style.display = 'none';
+        }
+    }
+
+    // Hook into Sensor Stream
+    handleSensorData(accel, gyro, force) {
+        // Always update UI Debug
+        // sensorManager.updateUI(); // Done in sensor manager
+
+        if (this.mode === 'referee') {
+            referee.analyze(accel, gyro, force);
+        } else if (this.mode === 'recorder') {
+            this.recorder.recordFrame(accel, gyro);
+        }
+    }
+}
+
 // Init
 const sensorManager = new SensorManager();
 const referee = new MoveReferee();
 const simulator = new Simulator();
-const gameManager = new GameManager();
+const gameManager = new GameManager(); // Keep it for referee mode
+const app = new App();
+
+// Hook Sensor Manager to App instead of Referee directly
+SensorManager.prototype.startListeners = function () {
+    this.isActive = true;
+    document.getElementById('sensor-status').innerText = "Durum: AKTİF";
+    document.getElementById('sensor-status').style.color = "#00f3ff";
+    document.getElementById('btn-calibrate').style.display = 'block';
+
+    window.addEventListener('devicemotion', (event) => {
+        this.handleMotion(event);
+    });
+    window.addEventListener('deviceorientation', (event) => {
+        this.handleOrientation(event);
+    });
+};
+
+// Override HandleMotion to route via App
+const originalHandleMotion = SensorManager.prototype.handleMotion;
+SensorManager.prototype.handleMotion = function (event) {
+    // ... Copy paste of logic or better: modify SensorManager class directly.
+    // Let's monkey patch for now to avoid re-writing the big class right now.
+
+    // RE-IMPLEMENTING handleMotion cleanly to fix "referee is not defined" scope issue if valid
+    // Reuse existing logic but change the call at the end.
+
+    // Read raw
+    let x = (event.acceleration ? event.acceleration.x : 0) || 0;
+    let y = (event.acceleration ? event.acceleration.y : 0) || 0;
+    let z = (event.acceleration ? event.acceleration.z : 0) || 0;
+
+    // Calibration
+    if (this.isCalibrating) {
+        this.calibrationBuffer.x.push(x);
+        this.calibrationBuffer.y.push(y);
+        this.calibrationBuffer.z.push(z);
+    }
+
+    this.accel.x = x - this.offsets.x;
+    this.accel.y = y - this.offsets.y;
+    this.accel.z = z - this.offsets.z;
+
+    const force = Math.sqrt(this.accel.x ** 2 + this.accel.y ** 2 + this.accel.z ** 2);
+    if (force > this.maxForce) this.maxForce = force;
+
+    this.updateUI();
+
+    // ROUTE TO APP instead of REFEREE directly
+    app.handleSensorData(this.accel, this.gyro, force);
+};
+
+// Recorder Buttons
+document.getElementById('btn-rec-start').addEventListener('click', () => {
+    const moveId = document.getElementById('record-select').value;
+    app.recorder.start(moveId);
+    document.getElementById('btn-rec-start').style.display = 'none';
+    document.getElementById('btn-rec-stop').style.display = 'block';
+    document.getElementById('rec-status').innerText = "KAYIT YAPILIYOR... Hareketi 3 kez tekrarla.";
+    document.getElementById('rec-status').style.color = "red";
+});
+
+document.getElementById('btn-rec-stop').addEventListener('click', () => {
+    app.recorder.stop();
+    document.getElementById('btn-rec-start').style.display = 'block';
+    document.getElementById('btn-rec-stop').style.display = 'none';
+    document.getElementById('rec-status').innerText = "Dosya İndirildi. Diğer harekete geç.";
+    document.getElementById('rec-status').style.color = "lime";
+});
 
 document.getElementById('btn-connect').addEventListener('click', () => {
     sensorManager.requestPermission();
     document.getElementById('btn-connect').style.display = 'none';
 
-    // Start Random Game
     setTimeout(() => {
         gameManager.startRandomGame();
     }, 1000);
-});
-
-document.getElementById('btn-calibrate').addEventListener('click', () => {
     sensorManager.startCalibration();
 });

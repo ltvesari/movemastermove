@@ -25,20 +25,23 @@ class SensorManager {
     async requestPermission() {
         if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
             try {
+                alert("İzin isteniyor (iOS)...");
                 const response = await DeviceMotionEvent.requestPermission();
                 if (response === 'granted') {
+                    alert("İzin VERİLDİ!");
                     this.startListeners();
                     return true;
                 } else {
-                    alert('Sensor izni reddedildi!');
+                    alert('Sensor izni REDDEDİLDİ: ' + response);
                     return false;
                 }
             } catch (e) {
                 console.error(e);
-                alert('İzin hatası: ' + e);
+                alert('İzin hatası (Catch): ' + e);
                 return false;
             }
         } else {
+            alert("İzin gerekmiyor (Android/PC), dinlemeye başlanıyor...");
             this.startListeners();
             return true;
         }

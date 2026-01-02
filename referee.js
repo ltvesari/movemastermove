@@ -216,144 +216,137 @@ class MoveReferee {
 
     analyze(accel, gyro, force) {
         const now = Date.now();
-        this.history.push({ a: { ...accel }, g: { ...gyro }, f: force, t: now });
-        if (this.history.length > this.historyLimit) this.history.shift();
 
-        if (now - this.lastTriggerTime < this.cooldown && !this.isEvaluatingStance) return;
+        // --- PULSE DETECTION LOGIC (V6 - Accumulated) ---
 
-        // --- DETECTION LOGIC CHAIN ---
+        const MOVE_GATE = 1.8;
+        const END_GATE = 1.2;
 
-        // 1. STANCE (Continuous Check)
-        if (this.targetMoveId === '20' || this.targetMoveId === '21') {
-            this.checkStance(accel, gyro, force);
-            return;
+        if (force > MOVE_GATE) {
+            this.isMoving = true;
+            this.lastMoveTime = now;
         }
 
-        // 2. ACTION (Discrete Movements)
-        if (['22', '23', '24', '25'].includes(this.targetMoveId)) {
-            this.checkAction(accel, gyro, force);
-            return;
-        }
+        if (this.isMoving) {
+            this.history.push({ a: { ...accel }, g: { ...gyro }, f: force, t: now });
 
-        // 3. OFFENSIVE (Triggered by Force)
-        // User Data shows max force ~4.5. Lowering threshold to 2.5
-        const SWING_THRESHOLD = 2.5;
-        if (force > SWING_THRESHOLD) {
-            this.classifyOffensive();
+            // End condition
+            if (force < END_GATE && (now - this.lastMoveTime > 150)) {
+                this.finishMoveAndAnalyze();
+            }
+            // Safety cap
+            if (this.history.length > 50) {
+                this.finishMoveAndAnalyze();
+            }
         }
     }
 
-    classifyOffensive() {
-        if (this.history.length < 5) return;
+    finishMoveAndAnalyze() {
+        this.isMoving = false;
+        if (this.history.length < 5) {
+            this.history = [];
+            return;
+        }
 
-        // --- SCORING WEIGHTS (Calibrated from Data) ---
-        // We use a looser matching algorithm to allow for speed/perfection variance.
+        this.classifyPattern(this.history);
+        this.history = []; // Clear
+    }
 
-        let weightedSumX = 0;
-        let weightedSumY = 0;
-        let totalWeight = 0;
+    classifyPattern(data) {
+        // --- 3D VECTOR ANALYSIS (V7) ---
+        // Includes Z-Axis for Thrust/Pull detection.
+
         let maxForce = 0;
+        let weightedSumX = 0, weightedSumY = 0, weightedSumZ = 0;
+        let totalWeight = 0;
 
-        // Gyro Analysis
-        const start = this.history[0].g;
-        const end = this.history[this.history.length - 1].g;
-        const deltaBeta = Math.abs(end.beta - start.beta);
+        data.forEach(h => {
+            if (h.f > maxForce) maxForce = h.f;
 
-        // Calculate Weighted Vector (Force^2 to prioritize peak movement)
-        this.history.forEach(h => {
-            if (h.f > 1.5) { // Lower noise gate
+            if (h.f > 1.5) {
                 let weight = h.f * h.f;
                 weightedSumX += h.a.x * weight;
                 weightedSumY += h.a.y * weight;
+                weightedSumZ += h.a.z * weight;
                 totalWeight += weight;
             }
-            if (h.f > maxForce) maxForce = h.f;
         });
 
         const domX = totalWeight > 0 ? weightedSumX / totalWeight : 0;
         const domY = totalWeight > 0 ? weightedSumY / totalWeight : 0;
+        const domZ = totalWeight > 0 ? weightedSumZ / totalWeight : 0;
 
-        // --- DEBUG UI ---
+        console.log(`PATTERN: MaxF=${maxForce.toFixed(1)} X=${domX.toFixed(1)} Y=${domY.toFixed(1)} Z=${domZ.toFixed(1)}`);
+
+        // UI Debug
         const uiVector = document.getElementById('dbg-vector');
         const uiForce = document.getElementById('dbg-force');
         const uiResult = document.getElementById('dbg-result');
-        const uiTest = document.getElementById('test-result'); // For Big Text in Test Mode
+        const uiTest = document.getElementById('test-result');
 
         if (uiVector) {
-            uiVector.innerText = `X:${domX.toFixed(1)} Y:${domY.toFixed(1)}`;
+            uiVector.innerText = `X:${domX.toFixed(1)} Y:${domY.toFixed(1)} Z:${domZ.toFixed(1)}`;
             uiForce.innerText = maxForce.toFixed(1);
         }
 
-        console.log(`Input: X=${domX.toFixed(2)} Y=${domY.toFixed(2)} F=${maxForce.toFixed(1)}`);
+        if (maxForce < 3.0) return;
 
         let detectedId = null;
-        let moveName = "";
 
-        // --- FUZZY MATCHING LOGIC (V5) ---
-        // Ranges allow for imperfect execution.
+        // --- SEQUENCE & 3D CHECKS ---
 
-        const REF_FORCE = 3.0; // Moderate force requirement
-
-        if (maxForce > REF_FORCE) {
-
-            // 6. EXECUTIONER (Chop Down) -> Dominant +Y
-            if (domY > 3.5) {
-                detectedId = '6';
-            }
-            // 7. EARTHSHAKER (Drop) -> Dominant -Y (Down)
-            else if (domY < -2.0) {
-                detectedId = '7';
-            }
-            // 3. RISING DRAGON (+X, -Y) -> Up & Right
-            else if (domX > 1.0 && domY < 0.5) {
-                detectedId = '3';
-            }
-            // 4. GALE UPPER (-X, +Y) -> Up & Left
-            else if (domX < -1.0 && domY > 0.5) {
-                detectedId = '4';
-            }
-            // 1. VANGUARD (-X, -Y) -> Down & Left (Slash)
-            else if (domX < -0.5 && domY < -0.5) {
-                detectedId = '1';
-            }
-            // 2. SINISTER (+X, -Y) -> Down & Right (Slash)
-            // Correction: Data showed Sinister might have -X start, but ideally it's opposite to Vanguard
-            else if (domX > 0.5 && domY < -0.5) {
-                detectedId = '2';
-            }
-            // 5. HEARTSEEKER (Pure -Y, Low X)
-            else if (domY < -1.5 && Math.abs(domX) < 1.0) {
-                detectedId = '5';
-            }
-            // 8. HORIZON SWEEPER (Left) -> Pure -X
-            else if (domX < -2.0 && Math.abs(domY) < 1.5) {
-                detectedId = '8';
-            }
-            // 9. BLADE HURRICANE (Right) -> Pure +X
-            else if (domX > 2.0 && Math.abs(domY) < 1.5) {
-                detectedId = '9';
-            }
+        // 7. EARTHSHAKER (Down)
+        if (domY < -1.5 && maxForce > 3.0) {
+            detectedId = '7';
+        }
+        // 6. EXECUTIONER (+Y)
+        else if (domY > 3.0) {
+            detectedId = '6';
+        }
+        // 3. RISING DRAGON (Up & Right)
+        else if (domX > 1.0 && domY < 0.5) {
+            detectedId = '3';
+        }
+        // 4. GALE UPPER (Up & Left)
+        else if (domX < -1.0 && domY > 0.5) {
+            detectedId = '4';
+        }
+        // 1. VANGUARD (Down & Left)
+        else if (domX < -0.5 && domY < -0.5) {
+            detectedId = '1';
+        }
+        // 2. SINISTER (Down & Right)
+        else if (domX > 0.5 && domY < -0.5) {
+            detectedId = '2';
+        }
+        // 5. HEARTSEEKER (Thrust) -> Pure -Y, Low X, Positive Z
+        else if (domY < -1.0 && Math.abs(domX) < 1.0 && domZ > 0.5) {
+            detectedId = '5';
+        }
+        // 8. HORIZON SWEEPER (-X)
+        else if (domX < -1.5) {
+            detectedId = '8';
+        }
+        // 9. BLADE HURRICANE (+X)
+        else if (domX > 1.5) {
+            detectedId = '9';
         }
 
         // --- FEEDBACK ---
         if (detectedId) {
-            moveName = MOVE_LIST[detectedId].name;
-            if (uiResult) uiResult.innerText = `ALGILANDI: ${moveName}`;
+            const name = MOVE_LIST[detectedId].name;
+            if (uiResult) uiResult.innerText = `ALGILANDI: ${name}`;
             if (uiTest) {
-                uiTest.innerText = moveName;
+                uiTest.innerText = name;
                 uiTest.style.color = "#00ff00";
             }
-
-            this.triggerMove(detectedId, 100); // 100% score for recognition
-
-        } else if (maxForce > 3.5) {
-            // High force but no match
+            this.triggerMove(detectedId, 100);
+        } else {
             if (uiResult) uiResult.innerText = "ANLAŞILMADI";
             if (uiTest) {
                 uiTest.innerText = "ANLAŞILMADI";
                 uiTest.style.color = "#ff5500";
             }
-            console.log("Unrecognized Move");
         }
     }
 

@@ -91,6 +91,25 @@ class SensorManager {
         document.getElementById('sensor-status').innerText = "Durum: KALİBRE EDİLDİ";
     }
 
+    startSession() {
+        this.isActiveSession = true;
+        this.sessionBuffer = [];
+        this.maxSessionForce = 0;
+        document.getElementById('action-button').classList.add('active');
+        document.getElementById('action-button').innerText = "RECORDING";
+    }
+
+    endSession() {
+        this.isActiveSession = false;
+        document.getElementById('action-button').classList.remove('active');
+        document.getElementById('action-button').innerText = "HOLD";
+
+        // Analyze what we captured
+        if (this.sessionBuffer.length > 5 && referee) { // Min 5 samples
+            referee.classifyPattern(this.sessionBuffer);
+        }
+    }
+
     handleMotion(event) {
         // Read raw
         const rawAcc = event.accelerationIncludingGravity || event.acceleration;
@@ -114,6 +133,17 @@ class SensorManager {
         const force = Math.sqrt(this.accel.x ** 2 + this.accel.y ** 2 + this.accel.z ** 2);
         if (force > this.maxForce) this.maxForce = force;
 
+        // --- SESSION LOGIC (Clutch) ---
+        if (this.isActiveSession) {
+            this.sessionBuffer.push({
+                a: { ...this.accel },
+                g: { ...this.gyro },
+                f: force
+            });
+            // Update max force specific to this session
+            if (force > this.maxSessionForce) this.maxSessionForce = force;
+        }
+
         // SAFE UI UPDATE
         try {
             this.updateUI();
@@ -121,15 +151,10 @@ class SensorManager {
             console.error("UI Error", e);
         }
 
-        // SAFE RECORDER HOOK
+        // SAFE RECORDER HOOK (Legacy Recorder)
         if (window.app && window.app.recorder && window.app.recorder.isRecording) {
             try { window.app.recorder.capture(this.accel, this.gyro); } catch (e) { console.error("Rec Error", e); }
         }
-
-        // SAFE ANALYZE
-        try {
-            if (typeof referee !== 'undefined') referee.analyze(this.accel, this.gyro, force);
-        } catch (e) { console.error("Ref Error", e); }
     }
 
     handleOrientation(event) {
@@ -548,9 +573,23 @@ class App {
         // Logic hooks
         if (mode === 'game') {
             gameManager.startRandomGame();
-        } else {
-            // Stop game loop if leaving game
-            // gameManager.stop(); // Todo if needed
+        }
+
+        if (mode === 'test' || mode === 'game') {
+            // Re-bind Action Button because element might be shared or re-created
+            const btn = document.getElementById('action-button');
+            if (btn) {
+                // Clear old (brute force, clean refactor typically better)
+                const newBtn = btn.cloneNode(true);
+                btn.parentNode.replaceChild(newBtn, btn);
+
+                newBtn.addEventListener('mousedown', () => sensorManager.startSession());
+                newBtn.addEventListener('mouseup', () => sensorManager.endSession());
+                newBtn.addEventListener('mouseleave', () => { if (sensorManager.isActiveSession) sensorManager.endSession(); });
+
+                newBtn.addEventListener('touchstart', (e) => { e.preventDefault(); sensorManager.startSession(); });
+                newBtn.addEventListener('touchend', (e) => { e.preventDefault(); sensorManager.endSession(); });
+            }
         }
 
         if (mode === 'test') {

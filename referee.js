@@ -253,8 +253,20 @@ class MoveReferee {
     }
 
     classifyPattern(data) {
-        // --- 3D VECTOR ANALYSIS (V7) ---
-        // Includes Z-Axis for Thrust/Pull detection.
+        // --- 3D VECTOR ANALYSIS (V9 - Manual User Calibration) ---
+
+        // SİZİN GİRDİĞİNİZ DEĞERLER BURADA:
+        const USER_CALIBRATION = {
+            '1': { name: "Vanguard", target: { x: -4.0, y: -4.0, z: -0.5 } },
+            '2': { name: "Sinister", target: { x: 4.0, y: -4.0, z: -0.5 } },
+            '3': { name: "Rising", target: { x: -4.0, y: 4.0, z: 0.5 } },
+            '4': { name: "Gale", target: { x: 4.0, y: 4.0, z: 0.5 } },
+            '5': { name: "Heartseeker", target: { x: 0.0, y: 0.5, z: 4.0 } },
+            '6': { name: "Executioner", target: { x: 0.0, y: -4.0, z: 2.0 } },
+            '7': { name: "Earthshaker", target: { x: 0.0, y: -4.0, z: 3.0 } },
+            '8': { name: "Horizon", target: { x: -4.0, y: 0.0, z: -0.5 } },
+            '9': { name: "Blade", target: { x: 4.0, y: 0.0, z: -0.5 } }
+        };
 
         let maxForce = 0;
         let weightedSumX = 0, weightedSumY = 0, weightedSumZ = 0;
@@ -276,8 +288,6 @@ class MoveReferee {
         const domY = totalWeight > 0 ? weightedSumY / totalWeight : 0;
         const domZ = totalWeight > 0 ? weightedSumZ / totalWeight : 0;
 
-        console.log(`PATTERN: MaxF=${maxForce.toFixed(1)} X=${domX.toFixed(1)} Y=${domY.toFixed(1)} Z=${domZ.toFixed(1)}`);
-
         // UI Debug
         const uiVector = document.getElementById('dbg-vector');
         const uiForce = document.getElementById('dbg-force');
@@ -289,47 +299,45 @@ class MoveReferee {
             uiForce.innerText = maxForce.toFixed(1);
         }
 
-        if (maxForce < 3.0) return;
+        console.log(`PATTERN: MaxF=${maxForce.toFixed(1)} X=${domX.toFixed(1)} Y=${domY.toFixed(1)} Z=${domZ.toFixed(1)}`);
+
+        if (maxForce < 3.0) return; // User Force Threshold
 
         let detectedId = null;
 
-        // --- SEQUENCE & 3D CHECKS ---
+        // --- DISTANCE BASED MATCHING (En Yakın Hareketi Bul) ---
+        // Sizin belirlediğiniz noktalara en yakın olanı seçiyoruz.
 
-        // 7. EARTHSHAKER (Down)
-        if (domY < -1.5 && maxForce > 3.0) {
-            detectedId = '7';
+        let minDistance = 999;
+        let bestMatch = null;
+
+        for (const [id, move] of Object.entries(USER_CALIBRATION)) {
+            const t = move.target;
+
+            // Farkları hesapla
+            const dx = domX - t.x;
+            const dy = domY - t.y;
+            const dz = domZ - t.z;
+
+            // Öklid mesafesi (3D)
+            const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+
+            // Heartseeker Özel Kuralı: Z pozitif olmalı
+            if (id === '5' && domZ < 2.0) continue;
+
+            // Earthshaker vs Executioner Ayrımı (Z Derinliği)
+            if (id === '7' && domZ < 2.5) continue; // Earthshaker için derinlik şart
+            if (id === '6' && domZ > 2.5) continue; // Executioner için fazla derinlik olmamalı
+
+            if (dist < minDistance) {
+                minDistance = dist;
+                bestMatch = id;
+            }
         }
-        // 6. EXECUTIONER (+Y)
-        else if (domY > 3.0) {
-            detectedId = '6';
-        }
-        // 3. RISING DRAGON (Up & Right)
-        else if (domX > 1.0 && domY < 0.5) {
-            detectedId = '3';
-        }
-        // 4. GALE UPPER (Up & Left)
-        else if (domX < -1.0 && domY > 0.5) {
-            detectedId = '4';
-        }
-        // 1. VANGUARD (Down & Left)
-        else if (domX < -0.5 && domY < -0.5) {
-            detectedId = '1';
-        }
-        // 2. SINISTER (Down & Right)
-        else if (domX > 0.5 && domY < -0.5) {
-            detectedId = '2';
-        }
-        // 5. HEARTSEEKER (Thrust) -> Pure -Y, Low X, Positive Z
-        else if (domY < -1.0 && Math.abs(domX) < 1.0 && domZ > 0.5) {
-            detectedId = '5';
-        }
-        // 8. HORIZON SWEEPER (-X)
-        else if (domX < -1.5) {
-            detectedId = '8';
-        }
-        // 9. BLADE HURRICANE (+X)
-        else if (domX > 1.5) {
-            detectedId = '9';
+
+        // Mesafe toleransı (Ne kadar yakın olmalı?)
+        if (minDistance < 3.5) {
+            detectedId = bestMatch;
         }
 
         // --- FEEDBACK ---
@@ -349,8 +357,6 @@ class MoveReferee {
             }
         }
     }
-
-    // ... (Stance methods remain same)
 
     startStanceEvaluation() {
         this.isEvaluatingStance = true;

@@ -406,7 +406,132 @@ class MoveReferee {
 MoveReferee.prototype.setTargetCallback = function (cb) { this.onMoveDetected = cb; };
 MoveReferee.prototype.setFailureCallback = function (cb) { this.onMoveFailed = cb; };
 
-// ... (Gamemanager, App classes remain same)
+class GameManager {
+    constructor() {
+        this.moves = Object.values(MOVE_LIST);
+        this.uiTarget = document.getElementById('target-move');
+        this.uiInstruction = document.querySelector('.instruction-label');
+    }
+
+    startParamPractice(moveId) {
+        const move = MOVE_LIST[moveId];
+        this.setupTurn(move);
+    }
+
+    startRandomGame() {
+        this.nextRandomTurn();
+    }
+
+    nextRandomTurn() {
+        const move = this.moves[Math.floor(Math.random() * this.moves.length)];
+        this.setupTurn(move);
+    }
+
+    setupTurn(move) {
+        this.currentTarget = move;
+        this.uiTarget.innerText = move.name.toUpperCase();
+        this.uiInstruction.innerText = move.desc;
+        this.uiTarget.style.color = "#fff";
+
+        const scoreDiv = document.getElementById('accuracy-display');
+        if (scoreDiv) scoreDiv.style.opacity = '0';
+
+        referee.setTargetMove(move.id);
+
+        referee.setTargetCallback((detectedId, score) => {
+            if (detectedId === this.currentTarget.id) {
+                this.displayScore(score);
+
+                let praise = "BAŞARILI";
+                if (score > 85) praise = "MÜKEMMEL!";
+                else if (score > 60) praise = "İYİ!";
+                else praise = "OLDU GİBİ...";
+
+                referee.showFeedback(praise);
+                document.getElementById('feedback-message').style.color = score > 80 ? '#00ff00' : '#ffff00';
+
+                setTimeout(() => this.nextRandomTurn(), 3000);
+            } else {
+                referee.showFeedback("YANLIŞ HAREKET!", "#ff5500");
+            }
+        });
+
+        referee.setFailureCallback((reason) => {
+            console.log("Game Manager Report: Fail -> " + reason);
+        });
+    }
+
+    displayScore(score) {
+        const scoreDiv = document.getElementById('accuracy-display');
+        const scoreVal = document.getElementById('score-val');
+
+        if (!scoreVal) return;
+
+        scoreVal.innerText = score + "%";
+        if (score >= 80) scoreVal.style.color = "#00ff00";
+        else if (score >= 50) scoreVal.style.color = "#ffff00";
+        else scoreVal.style.color = "#ff5500";
+        if (scoreDiv) scoreDiv.style.opacity = '1';
+    }
+}
+
+class App {
+    constructor() {
+        this.mode = 'recorder'; // Default to recorder initially
+        this.recorder = new Recorder();
+
+        // Hide Nav initially
+        this.uiNav = document.getElementById('main-nav');
+
+        // Views
+        this.views = {
+            recorder: document.getElementById('view-recorder'),
+            test: document.getElementById('view-test'),
+            game: document.getElementById('view-game')
+        };
+
+        this.navBtns = {
+            recorder: document.getElementById('nav-recorder'),
+            test: document.getElementById('nav-test'),
+            game: document.getElementById('nav-game')
+        };
+    }
+
+    enableNav() {
+        this.uiNav.style.display = 'block';
+        this.setMode('recorder'); // Start in Recorder mode
+    }
+
+    setMode(mode) {
+        this.mode = mode;
+        console.log("App Mode:", mode);
+
+        // Hide all views
+        Object.values(this.views).forEach(el => el.style.display = 'none');
+        Object.values(this.navBtns).forEach(el => el.style.background = '#333');
+
+        // Show selected
+        if (this.views[mode]) this.views[mode].style.display = 'block';
+        if (this.navBtns[mode]) this.navBtns[mode].style.background = 'var(--primary)';
+
+        // Logic hooks
+        if (mode === 'game') {
+            gameManager.startRandomGame();
+        } else {
+            // Stop game loop if leaving game
+            // gameManager.stop(); // Todo if needed
+        }
+
+        if (mode === 'test') {
+            // Enable Referee analyzing for Debug
+            referee.setTargetCallback((id, score) => {
+                document.getElementById('test-result').innerText = MOVE_LIST[id].name;
+                document.getElementById('test-result').style.color = "#00ff00";
+                setTimeout(() => document.getElementById('test-result').style.color = "#00f3ff", 200);
+            });
+        }
+    }
+}
 
 class Recorder {
     constructor() {
@@ -416,11 +541,12 @@ class Recorder {
         this.sessionData = {}; // Stores all moves in this session
 
         this.uiSelect = document.getElementById('record-select');
+        this.uiDesc = document.getElementById('rec-move-desc'); // New Description Element
         this.uiStatus = document.getElementById('rec-status');
         this.uiOutput = document.getElementById('rec-output');
         this.btnStart = document.getElementById('btn-rec-start');
         this.btnCopy = document.getElementById('btn-rec-copy');
-        this.btnDownload = document.getElementById('btn-rec-download'); // New button
+        this.btnDownload = document.getElementById('btn-rec-download');
 
         this.populateList();
         this.bindEvents();
@@ -436,13 +562,26 @@ class Recorder {
             this.uiSelect.appendChild(opt);
         });
 
-        // Restore selection if possible
+        // Restore selection or default to first
         if (this.lastSelected) this.uiSelect.value = this.lastSelected;
+
+        // Initial Description Update
+        this.updateDescription();
+    }
+
+    updateDescription() {
+        if (this.uiDesc && this.uiSelect.value) {
+            const moveId = this.uiSelect.value;
+            if (MOVE_LIST[moveId]) {
+                this.uiDesc.innerText = MOVE_LIST[moveId].desc;
+            }
+        }
     }
 
     bindEvents() {
         this.uiSelect.addEventListener('change', (e) => {
             this.lastSelected = e.target.value;
+            this.updateDescription();
         });
 
         this.btnStart.addEventListener('click', () => {

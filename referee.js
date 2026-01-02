@@ -201,6 +201,7 @@ class MoveReferee {
 
         // Active Target Move (If we are looking for a specific one)
         this.targetMoveId = null;
+        this.isMoving = false; // Pulse Detection State
     }
 
     setTargetMove(moveId) {

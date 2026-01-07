@@ -7,8 +7,8 @@
 const SENSITIVITY = {
     STEP_THRESHOLD: 12.0, // m/s^2 total force peak
     SWING_THRESHOLD: 25.0, // ~2.5g
-    SHAKE_THRESHOLD: 15.0,
-    JUMP_THRESHOLD: 25.0, // High vertical force
+    SHAKE_THRESHOLD: 18.0,
+    JUMP_THRESHOLD: 13.0, // Lowered for better detection (approx 1.3g)
     STILL_TOLERANCE: 1.0 // Deviation allowed for "Freeze"
 };
 
@@ -162,6 +162,9 @@ class SensorManager {
 
         const totalForce = Math.sqrt(this.accel.x ** 2 + this.accel.y ** 2 + this.accel.z ** 2);
 
+        // DEBUG: Realtime force display (Optional, helpful for tuning)
+        document.getElementById('feedback-text').innerText = "F: " + totalForce.toFixed(1);
+
         // Detect Events
         const events = {
             step: false,
@@ -191,12 +194,13 @@ class SensorManager {
             if (navigator.vibrate) navigator.vibrate(50);
         }
 
-        // 3. JUMP (Simplified: High force or heavy vertical movement)
+        // 3. JUMP (Improved: Lower threshold + Vertical emphasis if possible, but total force is simpler)
         // Ideally should detect freefall (force ~ 0) but that's hard to catch sometimes. 
         // We will use a high force spike for "taking off" or landing.
         if (totalForce > SENSITIVITY.JUMP_THRESHOLD && (now - this.lastSwingTime > 500)) {
             events.jump = true; // reusing swing timer to prevent double counting
             this.lastSwingTime = now;
+            console.log("Jump Detected! Force:", totalForce);
         }
 
         // 4. SHAKE (Rapid direction changes)
@@ -291,6 +295,9 @@ class GameManager {
     update(events) {
         if (this.isPaused) return;
 
+        // Store for async checks
+        this.lastEvents = events;
+
         const step = LEVEL_1_STEPS[this.currentStepIdx];
 
         // --- STEP LOGIC ---
@@ -311,17 +318,21 @@ class GameManager {
 
         // 3. STEALTH (Dragon)
         if (step.type === 'STEALTH') {
-            if (this.dragonEyeOpen) {
-                // If moving too much -> BURN
-                if (!events.isStill && events.force > 12.0) { // Slight wiggle room
-                    this.triggerBurn();
-                }
-            } else {
+            if (this.stealthState === 'CHECK' || this.stealthState === 'WARN') {
+                // Biz verifySquat ile kontrol ediyoruz, anlik hareket yanmaya sebep olabilir mi?
+                // YANDIN logic'i verifySquat icine tasindi. 
+                // Ancak cok bariz hareket varsa hemen yakalayabiliriz.
+                // Simdilik sadece verifySquat'a guvenelim.
+            } else if (this.stealthState === 'WALK') {
                 // Can walk
                 if (events.step) {
                     this.addProgress(1, step.target);
+                    // Check triggers
+                    this.checkStealthStep();
                     this.flashFeedback("SESSİZ ADIM...");
                 }
+            } else if (this.stealthState === 'WAIT') {
+                // Waiting for eye close... do nothing.
             }
         }
 
@@ -380,58 +391,126 @@ class GameManager {
 
     // --- SUB-LOGIC: STEALTH ---
     startStealthLoop() {
-        // Random interval for eye opening
-        const loop = () => {
-            if (LEVEL_1_STEPS[this.currentStepIdx].type !== 'STEALTH') return;
+        // Init Stealth State
+        this.stealthSteps = 0;
+        this.nextEyeTrigger = 5 + Math.floor(Math.random() * 6); // 5-10 adim
+        this.stealthState = 'WALK'; // WALK, CHECK, WARN, WAIT
 
-            // Wait random 2-4s, then open eye
-            const delay = 2000 + Math.random() * 2000;
-            this.stealthTimer = setTimeout(() => {
-                this.openDragonEye();
-            }, delay);
-        };
-        loop();
-        this.stealthLoopFn = loop; // Reference to restart
+        console.log("Stealth Init: Target " + this.nextEyeTrigger);
+    }
+
+    checkStealthStep() {
+        if (this.stealthState !== 'WALK') return;
+
+        this.stealthSteps++;
+        console.log(`Stealth: ${this.stealthSteps}/${this.nextEyeTrigger}`);
+
+        if (this.stealthSteps >= this.nextEyeTrigger) {
+            this.openDragonEye();
+        }
     }
 
     openDragonEye() {
         if (this.isPaused) return;
 
+        this.stealthState = 'CHECK';
         this.dragonEyeOpen = true;
+
+        // UI Update
         this.uiIcon.innerText = '👁️';
         this.uiIcon.classList.add('eye-open');
-        this.uiFeedback.innerText = "GÖZLER AÇILDI! DON!";
+        this.uiFeedback.innerText = "GÖZLER AÇILDI! ÇÖK!";
         this.uiFeedback.style.color = "red";
+        document.body.style.backgroundColor = "#440000"; // Red Tint
 
         // Vibrate warning
         if (navigator.vibrate) navigator.vibrate(500);
 
-        // Keep open for 4s
+        // 1. Kontrol (2 saniye sonra)
         setTimeout(() => {
-            // Safety check
-            if (LEVEL_1_STEPS[this.currentStepIdx].type !== 'STEALTH') return;
+            if (this.currentStepIdx !== 3) return; // Safety
+            this.verifySquat(1);
+        }, 2000);
+    }
 
-            this.dragonEyeOpen = false;
-            this.uiIcon.innerText = '🤫';
-            this.uiIcon.classList.remove('eye-open');
-            this.uiFeedback.innerText = "Devam et...";
-            this.uiFeedback.style.color = "var(--primary)";
+    verifySquat(attempt) {
+        // Kontrol Anı: Hareket var mı?
+        // SensorManager son durumu events.isStill olarak gonderiyor ama anlik.
+        // Biz burada son 500ms datasina bakamiyoruz ama anlik 'isStill' yeterli varsayalim.
+        // Eger SensorManager surekli guncelleniyorsa, game loop icindeki son duruma bakmamiz lazim.
+        // Ancak bu fonksiyon async timeout. O yuzden flag lazim.
+        // HACK: SensorManager isStill degerini global veya instance prop olarak saklayalim.
 
-            // Loop again
-            this.stealthLoopFn();
-        }, 4000);
+        // Simdilik 'lastEvents' uzerinden bakalim (GameManager.update icinde saklanan)
+        const isSafe = this.lastEvents && this.lastEvents.isStill;
+
+        if (isSafe) {
+            this.stealthSuccess();
+        } else {
+            if (attempt === 1) {
+                // WARN - 2 Saniye daha ver
+                this.stealthState = 'WARN';
+                this.uiFeedback.innerText = "DAHA FAZLA ÇÖK!";
+                this.uiFeedback.style.color = "orange";
+                if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+
+                setTimeout(() => {
+                    if (this.currentStepIdx !== 3) return;
+                    this.verifySquat(2);
+                }, 2000);
+            } else {
+                // FAIL
+                this.triggerBurn();
+            }
+        }
+    }
+
+    stealthSuccess() {
+        this.stealthState = 'WAIT';
+        this.uiFeedback.innerText = "GÜVENDESİN...";
+        this.uiFeedback.style.color = "#00ff00";
+        this.uiIcon.innerText = '✅';
+
+        // Green Light
+        document.body.style.backgroundColor = "#003300";
+
+        // 5 Saniye Bekle
+        setTimeout(() => {
+            if (this.currentStepIdx !== 3) return;
+            this.closeDragonEye();
+        }, 5000);
+    }
+
+    closeDragonEye() {
+        this.dragonEyeOpen = false;
+        this.stealthState = 'WALK';
+
+        // Reset Logic
+        this.stealthSteps = 0;
+        this.nextEyeTrigger = 5 + Math.floor(Math.random() * 6);
+
+        // UI Reset
+        this.uiIcon.innerText = '🤫';
+        this.uiIcon.classList.remove('eye-open');
+        this.uiFeedback.innerText = "Devam et...";
+        this.uiFeedback.style.color = "var(--primary)";
+        document.body.style.backgroundColor = "var(--bg)"; // Reset BG
     }
 
     triggerBurn() {
         if (this.burnState) return;
         this.burnState = true;
-        this.uiFeedback.innerText = "YANDIN! (Tekrar dene)";
+        this.uiFeedback.innerText = "BAŞARAMADIN! (YANDIN)";
+        document.body.style.backgroundColor = "red";
 
-        // Penalty: Reset progress a bit? Or just vibe check?
-        if (navigator.vibrate) navigator.vibrate([100, 50, 100, 50, 100]);
+        if (navigator.vibrate) navigator.vibrate([200, 100, 200, 100, 500]);
 
-        // Reset burn flag after a bit
-        setTimeout(() => { this.burnState = false; }, 2000);
+        // Reset burn flag after a bit and Retry? 
+        // Or just continue loop for prototype? Let's reset to walk.
+        setTimeout(() => {
+            this.burnState = false;
+            this.closeDragonEye(); // Recover
+        }, 3000);
     }
 
     // --- SUB-LOGIC: REACTION (JUMP/SHAKE) ---

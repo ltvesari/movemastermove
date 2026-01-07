@@ -124,6 +124,7 @@ class SensorManager {
         // Swing vars
         this.isSwinging = false;
         this.lastSwingTime = 0;
+        this.lastJumpTime = 0; // Separate timer for jumps
 
         // Shake vars
         this.shakeBuffer = [];
@@ -162,9 +163,6 @@ class SensorManager {
 
         const totalForce = Math.sqrt(this.accel.x ** 2 + this.accel.y ** 2 + this.accel.z ** 2);
 
-        // DEBUG: Realtime force display (Optional, helpful for tuning)
-        document.getElementById('feedback-text').innerText = "F: " + totalForce.toFixed(1);
-
         // Detect Events
         const events = {
             step: false,
@@ -194,12 +192,12 @@ class SensorManager {
             if (navigator.vibrate) navigator.vibrate(50);
         }
 
-        // 3. JUMP (Improved: Lower threshold + Vertical emphasis if possible, but total force is simpler)
+        // 3. JUMP (Simplified: High force or heavy vertical movement)
         // Ideally should detect freefall (force ~ 0) but that's hard to catch sometimes. 
         // We will use a high force spike for "taking off" or landing.
-        if (totalForce > SENSITIVITY.JUMP_THRESHOLD && (now - this.lastSwingTime > 500)) {
-            events.jump = true; // reusing swing timer to prevent double counting
-            this.lastSwingTime = now;
+        if (totalForce > SENSITIVITY.JUMP_THRESHOLD && (now - this.lastJumpTime > 4500)) {
+            events.jump = true;
+            this.lastJumpTime = now; // Update jump specific timer
             console.log("Jump Detected! Force:", totalForce);
         }
 

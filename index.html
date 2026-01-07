@@ -1,118 +1,52 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="tr">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>MoveHero Referee - V3.1 (Weighted)</title>
+    <title>MoveHero: Zindan Yolu</title>
     <link rel="stylesheet" href="style.css">
-    <link
-        href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Roboto+Mono:wght@400;700&display=swap"
-        rel="stylesheet">
 </head>
 
 <body>
 
-    <div class="container">
-        <h1>MOTION HERO <span style="font-size: 14px; color: #555;">V4.0 (Prayer Grip)</span></h1>
-
-        <!-- Connection Status -->
-        <div id="sensor-status" class="status-indicator">Sensör: BEKLİYOR</div>
-        <button id="btn-connect" class="btn-primary">BAĞLAN & KALİBRE ET</button>
-
-        <!-- DEBUG VALUES (Helper) -->
-        <div style="font-family: monospace; font-size: 10px; color: #555; margin-top: 5px;">
-            ACC: <span id="val-accel">0,0,0</span> | MAX: <span id="val-max">0</span><br>
-            EVENTS: <span id="val-events" style="color: yellow;">0</span>
+    <div id="game-container">
+        <!-- Top Bar -->
+        <div id="top-bar">
+            <div id="stage-indicator">Bölüm 1/10</div>
+            <button id="next-btn" class="hidden">İLERLE ❯</button>
         </div>
 
-        <hr style="border-color: #333; margin: 15px 0;">
-
-        <!-- MAIN NAVIGATION -->
-        <div id="main-nav" style="display: none; margin-bottom: 20px;">
-            <div style="display: flex; gap: 5px;">
-                <button onclick="app.setMode('recorder')" class="nav-btn" id="nav-recorder"
-                    style="flex:1;">KAYIT</button>
-                <button onclick="app.setMode('test')" class="nav-btn" id="nav-test" style="flex:1;">DENEME</button>
-                <button onclick="app.setMode('game')" class="nav-btn" id="nav-game" style="flex:1;">OYUN</button>
-            </div>
+        <!-- Visual Feedback Area -->
+        <div id="visual-area">
+            <div id="visual-icon" class="icon-run">🏃</div>
+            <div id="feedback-text">HAZIRLAN...</div>
         </div>
 
-        <!-- ================= VIEWS ================= -->
-
-        <!-- VIEW 1: RECORDER -->
-        <div id="view-recorder" class="app-view" style="display: none;">
-            <h3>VERİ KAYIT</h3>
-            <div class="hint-text">
-                Telefonu iki avucunuzun arasında <b>DİK</b> tutun (Prayer Grip).<br>
-                Listeden hareketi seçip "KAYDI BAŞLAT" diyerek hareketi yapın.
-            </div>
-
-            <select id="record-select"
-                style="width: 100%; padding: 10px; background: #333; color: white; margin-top: 10px;">
-                <!-- Populated by JS -->
-            </select>
-
-            <div id="rec-move-desc"
-                style="margin-top: 5px; color: #aaa; font-size: 14px; font-style: italic; min-height: 20px;">
-                ...
-            </div>
-
-            <div id="rec-status" style="margin: 10px 0; font-size: 16px; font-weight:bold; color: #fff;">Hazır</div>
-
-            <div style="display: flex; gap: 10px;">
-                <button id="btn-rec-start" class="btn-primary" style="background: #ff0055;">BAŞLAT (3sn)</button>
-                <button id="btn-rec-copy" class="btn-secondary" style="display: none;">TEK KOPYALA</button>
-            </div>
-
-            <button id="btn-rec-download" class="btn-primary"
-                style="background: #00f3ff; color: #000; display: none; margin-top: 10px; width: 100%;">TÜMÜNÜ İNDİR
-                (JSON)</button>
-
-            <textarea id="rec-output"
-                style="width: 100%; height: 100px; background: #111; color: #0f0; border: 1px solid #444; margin-top: 10px; font-size: 10px; display:none;"
-                readonly></textarea>
+        <!-- Story & Instruction Text -->
+        <div id="text-area">
+            <p id="story-text">"Ejderha zindanı yolundasın..."</p>
+            <p id="instruction-text" class="instruction">(Koşmaya Başla)</p>
         </div>
 
-        <!-- VIEW 2: TEST MODE -->
-        <div id="view-test" class="app-view" style="display: none;">
-            <h3>SERBEST DENEME</h3>
-            <div class="hint-text">İstediğiniz hareketi yapın, sistem tahmin etmeye çalışacak.</div>
-
-            <div id="test-result"
-                style="font-size: 24px; font-weight: bold; color: #00f3ff; margin: 20px 0; min-height: 40px;">
-                ...
-            </div>
-
-            <div id="debug-panel"
-                style="background: rgba(0,0,0,0.8); padding: 15px; border-radius: 8px; border: 1px solid #555; font-family: monospace; font-size: 12px; color: #00ff00; text-align: left;">
-                <div>VEC (X,Y): <span id="dbg-vector" style="color: white;">--</span></div>
-                <div>FORCE: <span id="dbg-force" style="color: white;">--</span></div>
-                <div>GYRO (d/dt): <span id="dbg-gyro" style="color: white;">--</span></div>
-            </div>
-
-            <div class="action-btn-container">
-                <div id="action-button">HOLD</div>
-            </div>
+        <!-- Action Bar -->
+        <div id="progress-container">
+            <div id="progress-bar"></div>
         </div>
 
-        <!-- VIEW 3: GAME MODE -->
-        <div id="view-game" class="app-view" style="display: none;">
-            <h3>MOVE HERO</h3>
-            <div class="target-display">
-                HEDEF: <span id="target-move">...</span>
-            </div>
-            <div class="instruction-label" style="margin-bottom: 20px;">...</div>
-
-            <div id="feedback-message" class="feedback">HAZIRLAN...</div>
-
-            <div id="accuracy-display" style="font-size: 18px; color: #aaa; margin-top: 10px;">
-                SKOR: <span id="score-val" style="color: white;">0</span>
-            </div>
+        <!-- Sensor Overlay -->
+        <div id="sensor-overlay">
+            <h1>MoveHero</h1>
+            <p>Bu oyun hareket sensörlerini kullanır.</p>
+            <button id="start-btn">OYUNA BAŞLA</button>
+            <p class="small-hint">Lütfen telefonunuzun SALLAMA izinlerini onaylayın.</p>
         </div>
     </div>
 
-    <script src="referee.js?v=8.2"></script>
+    <!-- Audio Elements (Optional placeholders) -->
+    <!-- <audio id="sfx-step" src="step.mp3"></audio> -->
+
+    <script src="game.js"></script>
 </body>
 
 </html>

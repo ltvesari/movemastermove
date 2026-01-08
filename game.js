@@ -228,12 +228,14 @@ class GameManager {
         if (step.type === 'STEP' && events.step) {
             this.addProgress(1, step.target);
             this.flashFeedback("ADIM!");
+            if (window.soundManager) window.soundManager.playStep();
         }
 
         // 2. SWING / CHOP
         if ((step.type === 'SWING' || step.type === 'CHOP') && events.swing) {
             this.addProgress(1, step.target);
             this.flashFeedback("VURUŞ!");
+            if (window.soundManager) window.soundManager.playSwing();
             // Vibration
             if (navigator.vibrate) navigator.vibrate(100);
         }
@@ -252,6 +254,7 @@ class GameManager {
                     // Check triggers
                     this.checkStealthStep();
                     this.flashFeedback("SESSİZ ADIM...");
+                    if (window.soundManager) window.soundManager.playStep();
                 }
             } else if (this.stealthState === 'WAIT') {
                 // Waiting for eye close... do nothing.
@@ -263,9 +266,11 @@ class GameManager {
             // Only count if we asked for it
             if (this.reactionActive) {
                 if (step.type === 'JUMP' && events.jump) {
+                    if (window.soundManager) window.soundManager.playJump();
                     this.successReaction();
                 }
                 if (step.type === 'SHAKE' && events.shake) {
+                    if (window.soundManager) window.soundManager.playShake();
                     this.successReaction();
                 }
             }
@@ -291,6 +296,8 @@ class GameManager {
     stepComplete() {
         this.isPaused = true;
 
+        if (window.soundManager) window.soundManager.playComplete();
+
         // Vibrate long
         if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
 
@@ -307,6 +314,7 @@ class GameManager {
             this.loadStep(this.currentStepIdx + 1);
         } else {
             // End
+            if (window.soundManager) window.soundManager.playWin();
             alert("Bölüm 1 Tamamlandı!");
         }
     }
@@ -374,6 +382,7 @@ class GameManager {
                 this.stealthState = 'WARN';
                 this.uiFeedback.innerText = "DAHA FAZLA ÇÖK!";
                 this.uiFeedback.style.color = "orange";
+                if (window.soundManager) window.soundManager.playStealthWarn();
                 if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
 
                 setTimeout(() => {
@@ -424,6 +433,8 @@ class GameManager {
         this.burnState = true;
         this.uiFeedback.innerText = "BAŞARAMADIN! (YANDIN)";
         document.body.style.backgroundColor = "red";
+
+        if (window.soundManager) window.soundManager.playFail();
 
         if (navigator.vibrate) navigator.vibrate([200, 100, 200, 100, 500]);
 

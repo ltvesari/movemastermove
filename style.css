@@ -118,8 +118,8 @@ body {
     padding: 10px;
     /* Reduced padding */
     border-radius: 8px;
-    margin-bottom: 30px;
-    /* increased margin bottom to push up from nav bar */
+    margin-bottom: 120px;
+    /* HUGE margin to push text up 2-3cm above browser bar */
     min-height: 90px;
     display: flex;
     flex-direction: column;

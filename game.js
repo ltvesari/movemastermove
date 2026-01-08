@@ -15,97 +15,7 @@ const SENSITIVITY = {
 // --- AUDIO (Placeholder) ---
 // const sfx = { step: new Audio('step.mp3'), swing: new Audio('swing.mp3') };
 
-// --- STEP DEFINITIONS (LEVEL 1) ---
-const LEVEL_1_STEPS = [
-    {
-        id: 1,
-        type: 'STEP',
-        story: "Ejderha zindanı yolundasın zindana ulaşmak için bar dolana kadar koş",
-        instruction: "(Koşmaya Başla)",
-        target: 30, // steps
-        icon: '🏃'
-    },
-    {
-        id: 2,
-        type: 'SWING',
-        story: "Zindanın kapısında Kızıl orklar var önce onları yok etmeliyiz.<br>Kılıcını çek <b>*telefonu sağ eline al*</b> telefon titreyene kadar onları kılıçtan geçir",
-        instruction: "(Savur!)",
-        target: 10, // swings
-        icon: '⚔️'
-    },
-    {
-        id: 3, // Intermediate step
-        type: 'SWING',
-        story: "Yarısını yok ettin şimdi kılıcını <b>sol eline al</b> ve titreyene kadar onları kılıçtan geçir",
-        instruction: "(Sol Elinle Savur!)",
-        target: 10,
-        icon: '⚔️'
-    },
-    {
-        id: 4,
-        type: 'STEALTH',
-        story: "İçeri girdin ileride kristal ejder uyuyor fakat uykusu çok hafif, sen adım attıkça kristal ejdere doğru yaklaşacaksın. <br><br>Eğer gözlerini açarsa hemen çökerek gözlerini kapatana kadar sessizce bekle. Yoksa YANARSIN!",
-        instruction: "(Yürü... Göz Açılınca DON!)",
-        target: 40, // steps (stealth mode)
-        icon: '🤫'
-    },
-    {
-        id: 5,
-        type: 'CHOP',
-        story: "Kristal Ejderin yanına geldin şimdi kılıcını kaldırıp bütün gücünle çökerek vur. <br><b>*telefonu fırlatma*</b> Kılıcın titreyene kadar vurmayı bırakma",
-        instruction: "(Kafanın üstünden yere vur!)",
-        target: 10,
-        icon: '🔨'
-    },
-    {
-        id: 6,
-        type: 'JUMP',
-        story: "Dikkat Ejder kuyruğuyla sana saldırmak üzere. Ekranda zıpla yazdığında geç kalmadan zıpla.",
-        instruction: "(ZIPLA yazısını bekle...)",
-        target: 5, // jumps
-        icon: '🦘'
-    },
-    {
-        id: 7,
-        type: 'CHOP',
-        story: "Şimdi kılıcını kaldırıp bütün gücünle çökerek vur. <br><b>*telefonu fırlatma*</b> Kılıcın titreyene kadar vurmayı bırakma",
-        instruction: "(Vur!)",
-        target: 10,
-        icon: '🔨'
-    },
-    {
-        id: 8,
-        type: 'SHAKE',
-        story: "Ejder sersemledi. Fakat zindanın içinde gölge doğanlar belirdi.<br>Telefonu 2 elinle tut. Ekranda salla yazınca 1 kere salla. Gölge doğanlar hızlıdır çabuk reaksiyon vermelisin.<br>(Gecikme hakkın yok!)",
-        instruction: "(SALLA yazınca salla!)",
-        target: 8, // shakes
-        icon: '📳'
-    },
-    {
-        id: 9,
-        type: 'JUMP',
-        story: "Dikkat! Ejder kuyruğuyla sana saldırmak üzere. Ekranda zıpla yazdığında geç kalmadan zıpla.",
-        instruction: "(ZIPLA yazısını bekle...)",
-        target: 5,
-        icon: '🦘'
-    },
-    {
-        id: 10,
-        type: 'CHOP',
-        story: "Şimdi kılıcını kaldırıp bütün gücünle çökerek vur. <br><b>*telefonu fırlatma*</b> Telefon titreyene kadar vurmayı bırakma.",
-        instruction: "(Bitir işini!)",
-        target: 10,
-        icon: '🔨'
-    },
-    {
-        id: 11,
-        type: 'WIN',
-        story: "KAZANDIN! <br> Zindan temizlendi.",
-        instruction: "Tebrikler kahraman.",
-        target: 0,
-        icon: '🏆'
-    }
-];
+// LEVEL_1_STEPS is now loaded from action_editor.js
 
 // --- SENSOR MANAGER ---
 class SensorManager {
@@ -154,7 +64,12 @@ class SensorManager {
     }
 
     handleMotion(e) {
-        const acc = e.accelerationIncludingGravity || e.acceleration;
+        // Prefer Linear Acceleration (No Gravity) for Jump/Shake
+        const linear = e.acceleration;
+        const gravity = e.accelerationIncludingGravity;
+
+        // Fallback or Gravity-included for some calc
+        const acc = gravity || linear;
         if (!acc) return;
 
         // Update values
@@ -162,6 +77,15 @@ class SensorManager {
         this.accel = { x: acc.x || 0, y: acc.y || 0, z: acc.z || 0 };
 
         const totalForce = Math.sqrt(this.accel.x ** 2 + this.accel.y ** 2 + this.accel.z ** 2);
+
+        // Linear Force (If available, much better for jumps)
+        let linearForce = 0;
+        if (linear && linear.x !== null) {
+            linearForce = Math.sqrt(linear.x ** 2 + linear.y ** 2 + linear.z ** 2);
+        } else {
+            // Estimate deviation from 9.8
+            linearForce = Math.abs(totalForce - 9.8);
+        }
 
         // Detect Events
         const events = {
@@ -192,18 +116,18 @@ class SensorManager {
             if (navigator.vibrate) navigator.vibrate(50);
         }
 
-        // 3. JUMP (Simplified: High force or heavy vertical movement)
-        // Ideally should detect freefall (force ~ 0) but that's hard to catch sometimes. 
-        // We will use a high force spike for "taking off" or landing.
-        if (totalForce > SENSITIVITY.JUMP_THRESHOLD && (now - this.lastJumpTime > 4500)) {
+        // 3. JUMP (Linear Force Detection)
+        // Jump creates a sharp spike in linear acceleration (> 5-8 m/s^2)
+        // Using 6.0 as a safe robust threshold ( approx 0.6g extra force)
+        const JUMP_LINEAR_THRESHOLD = 6.0;
+
+        if (linearForce > JUMP_LINEAR_THRESHOLD && (now - this.lastJumpTime > 4500)) {
             events.jump = true;
-            this.lastJumpTime = now; // Update jump specific timer
-            console.log("Jump Detected! Force:", totalForce);
+            this.lastJumpTime = now;
+            console.log("Jump Detected (Linear)!", linearForce);
         }
 
         // 4. SHAKE (Rapid direction changes)
-        // We'll trust the game logic to check for "isShaking" or just use high erratic force
-        // Let's use a simpler magnitude check for now as "Shake" usually implies high energy
         if (totalForce > SENSITIVITY.SHAKE_THRESHOLD) {
             events.shake = true;
         }
@@ -557,10 +481,17 @@ class GameManager {
         this.reactionActive = false;
         this.uiFeedback.innerText = "HARİKA!";
         this.uiFeedback.style.fontSize = "24px";
+        this.uiFeedback.style.color = "#00ff00";
 
         // Add progress
-        const stage = STAGES[this.currentStageIdx];
-        this.addProgress(1, stage.target);
+        const step = LEVEL_1_STEPS[this.currentStepIdx];
+        this.addProgress(1, step.target);
+
+        // Clear message after 2s
+        setTimeout(() => {
+            this.uiFeedback.innerText = "Bekle...";
+            this.uiFeedback.style.color = "var(--primary)";
+        }, 2000);
 
         // Continue loop
         this.reactionLoopFn();

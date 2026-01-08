@@ -76,7 +76,7 @@ const LEVEL_1_STEPS = [
     {
         id: 8,
         type: 'SHAKE',
-        story: "Ejder sersemledi. Fakat zindanın içinde gölge doğanlar belirdi.<br>Telefonu 2 elinle tut. Ekranda salla yazınca 1 kere salla. Gölge doğanlar hızlıdır çabuk reaksiyon vermelisin.",
+        story: "Ejder sersemledi. Fakat zindanın içinde gölge doğanlar belirdi.<br>Telefonu 2 elinle tut. Ekranda salla yazınca 1 kere salla. Gölge doğanlar hızlıdır çabuk reaksiyon vermelisin.<br>(Gecikme hakkın yok!)",
         instruction: "(SALLA yazınca salla!)",
         target: 8, // shakes
         icon: '📳'
@@ -84,7 +84,7 @@ const LEVEL_1_STEPS = [
     {
         id: 9,
         type: 'JUMP',
-        story: "Dikkat Ejder kuyruğuyla sana saldırmak üzere. Ekranda zıpla yazdığında geç kalmadan zıpla.",
+        story: "Dikkat! Ejder kuyruğuyla sana saldırmak üzere. Ekranda zıpla yazdığında geç kalmadan zıpla.",
         instruction: "(ZIPLA yazısını bekle...)",
         target: 5,
         icon: '🦘'
@@ -92,7 +92,7 @@ const LEVEL_1_STEPS = [
     {
         id: 10,
         type: 'CHOP',
-        story: "Şimdi kılıcını kaldırıp bütün gücünle çökerek vur. <br><b>*telefonu fırlatma*</b> Kılıcın titreyene kadar vurmayı bırakma",
+        story: "Şimdi kılıcını kaldırıp bütün gücünle çökerek vur. <br><b>*telefonu fırlatma*</b> Telefon titreyene kadar vurmayı bırakma.",
         instruction: "(Bitir işini!)",
         target: 10,
         icon: '🔨'
@@ -534,8 +534,10 @@ class GameManager {
         this.uiFeedback.innerText = prompt;
         this.uiFeedback.style.fontSize = "40px";
 
-        // Timeout to fail (2s for jump, 1s for shake)
-        const timeWindow = type === 'SHAKE' ? 1500 : 2500; // Giving slightly more generous windows for prototype
+        // Timeout to fail
+        // JUMP: 4s delay allowed
+        // SHAKE: 1s delay allowed
+        const timeWindow = type === 'SHAKE' ? 1000 : 4000;
 
         setTimeout(() => {
             if (this.reactionActive) {

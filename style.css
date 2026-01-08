@@ -73,6 +73,11 @@ body {
     animation: pulse 1s infinite;
 }
 
+#next-btn.hidden {
+    display: none;
+    /* Restore hidden functionality */
+}
+
 /* Visual Area */
 #visual-area {
     flex: 1;
